@@ -1,2 +1,8 @@
-venv
-.env
+*
+!requirements.txt
+!bot.py
+!LICENCE
+!.gitignore
+!cogs
+!view_db.py
+!readme.md
