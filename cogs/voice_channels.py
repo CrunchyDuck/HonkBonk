@@ -15,7 +15,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.command(name=f"{prefix}.join")
     async def join_voice_channel(self, ctx):
-        if not await self.bot.has_perm(ctx): return
+        """Join the VC channel the user is currently in."""
+        if not await self.bot.has_perm(ctx, admin=True): return
         voice = ctx.author.voice
         cnl_variable = self.bot.get_variable(ctx.message.content, "cnl", "int")
 
@@ -31,7 +32,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.command(name=f"{prefix}.leave")
     async def leave_voice_channel(self, ctx):
-        if not await self.bot.has_perm(ctx): return
+        """Leave the voice channel the bot is in, within this server."""
+        if not await self.bot.has_perm(ctx, admin=True): return
         await ctx.guild.change_voice_state(channel=None, self_deaf=True, self_mute=True)
         return
 

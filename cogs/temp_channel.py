@@ -6,7 +6,7 @@ import datetime
 import asyncio
 
 
-# TODO: Make an archive room, which honkbonk submits all of the messages from a room into in order to preserve them.
+# TODO: Order archive room alphabetically.
 # This should be done in batch
 
 class TempChannel(commands.Cog, name="temp_channel"):
