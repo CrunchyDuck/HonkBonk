@@ -172,6 +172,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             c.room.time
             c.room.time 1.2
         """
+        # TODO: Allow for infinite time with the value 0.
         if not await self.bot.has_perm(ctx): return
         channel = ctx.channel
         user = ctx.author
@@ -227,6 +228,40 @@ class TempChannel(commands.Cog, name="temp_channel"):
             await ctx.send(f"Ordered category channel by date in {order} order!")
         else:
             return
+
+    @commands.command(name=f"{prefix}.add")
+    async def add_temporary_room(self, ctx):
+        """
+        Adds ANY channel as a temporary channel.
+        Arguments:
+            owner: A mention of the new owner of the channel. Whoever invoked the command if omitted
+            time: How long the channel should be open for
+            channel: The channel to add as temporary.
+        Example:
+            c.room.add time=9.12
+            c.room.add @Oken #images
+        """
+        if not await self.bot.has_perm(ctx, admin=True): return
+        message = ctx.message
+
+        owner = message.mentions[0] if message.mentions else ctx.author
+        channel = message.channel_mentions[0] if message.channel_mentions else ctx.channel
+        duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
+
+        end_time = self.hours_from_now(duration)
+
+        self.bot.cursor.execute("SELECT * FROM temp_room WHERE room_id=?", (channel.id,))
+        if self.bot.cursor.fetchone():
+            await ctx.send(f"This room is already a temp room.")
+            return
+
+        await channel.edit(category=ctx.guild.get_channel(self.create_category), sync_permissions=True)
+        self.bot.cursor.execute("INSERT INTO temp_room VALUES(?, ?, ?)", (owner.id, channel.id, end_time))
+        self.bot.cursor.execute("commit")
+
+        await ctx.send(f"{channel.mention} changed to temporary room owned by {owner.name}")
+        await channel.send(f"Reopened channel under ownership of {owner.name}!")
+
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
