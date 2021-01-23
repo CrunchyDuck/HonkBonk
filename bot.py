@@ -224,6 +224,7 @@ class MyBot(commands.Bot):
 
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.
+        # TODO: Add command to check the chance x amount of weight has in the current index.
         """
         An object that can return a random result from a predefind dictionary of chances and values.
         curtsy of crunchyduck :)
@@ -385,6 +386,7 @@ def allgroups(matchobject):
 # TODO: Make temp rooms announce when created/opened
 # TODO: Help command.
 # TODO: Add timezone functions.
+# TODO: Make bot automatically update all rooms to have the same permission for the "bad" role.
 
 # FIXME: Bot doesn't announce a temp room is closed if closed by c.room.close
 # FIXME: Creating custom roles currently place the role at the top of the list, over the top of admins.

@@ -130,6 +130,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             response_message = "Crunchydunk broke chances. Room created."
         
         await ctx.send(response_message)
+        await created_channel.send("first")
 
     @commands.command(name=f"{prefix}.close")
     async def room_close(self, ctx):
@@ -197,6 +198,64 @@ class TempChannel(commands.Cog, name="temp_channel"):
             destruction_type = self.rc_destroy_type.get_value()
             await ctx.send(f"This room has {time_diff} hours until {destruction_type}.")
 
+    @commands.command(name=f"{prefix}.order_archive")
+    async def order_archive(self, ctx):
+        """
+        Order the channels in the archive category for this server.
+        Arguments:
+            date: Order channels by date
+            name: Order channels by name
+            descending: Order Z-A or newest-oldest
+        Example:
+            c.room.order_archive date
+            c.room.order_archive name descending
+        """
+        if not await self.bot.has_perm(ctx, admin=True): return
+        message = ctx.message
+        name = self.bot.get_variable(message.content, "name", type="keyword", default=False)
+        date = self.bot.get_variable(message.content, "date", type="keyword", default=False)
+        descending = self.bot.get_variable(message.content, "descending", type="keyword", default=False)
+
+        archive_cat = ctx.guild.get_channel(self.archive_category)
+
+        order = "descending" if descending else "ascending"
+        if name:
+            await self.order_cat_alphabetically(archive_cat, descending)
+            await ctx.send(f"Ordered category channel by name in {order} order!")
+        elif date:
+            await self.order_cat_created(archive_cat, descending)
+            await ctx.send(f"Ordered category channel by date in {order} order!")
+        else:
+            return
+
+    async def order_cat_alphabetically(self, category_channel, descending=False):
+        """
+        Sorts the channels in a category alphabetically.
+        Arguments:
+            category_channel: The category containing the channels to order.
+            descending: False does A-Z.
+        """
+        sorted_list = sorted(category_channel.channels, key=lambda channel: channel.name, reverse=descending)
+        for i in range(len(sorted_list)):
+            channel = sorted_list[i]
+            if channel.position == i:
+                continue
+            await channel.edit(position=i)
+
+    async def order_cat_created(self, category_channel, descending=False):
+        """
+        Orders channels in a category based on when the channel was created.
+        Arguments:
+            category_channel: The category containing the channels to order.
+            descending: False puts the first entry as the oldest room.
+        """
+        sorted_list = sorted(category_channel.channels, key=lambda channel: channel.created_at, reverse=descending)
+        for i in range(len(sorted_list)):
+            channel = sorted_list[i]
+            if channel.position == i:
+                continue
+            await channel.edit(position=i)
+
     @staticmethod
     def hours_from_now(hours):
         """Calculates the Unix Epoch Time in the given amount of hours. UTC time."""
@@ -225,4 +284,4 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
 def setup(bot):
     bot.add_cog(TempChannel(bot))
-    
+
