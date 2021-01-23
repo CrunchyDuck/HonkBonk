@@ -182,7 +182,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             await ctx.send("This channel doesn't seem to be a temporary channel.")
             return
 
-        hours = int(self.bot.get_variable(ctx.message.content, type="int", default=0))
+        hours = float(self.bot.get_variable(ctx.message.content, type="float", default=0))
         if hours:
             if (db_entry[0] == user.id or user.id in self.bot.admins):
                 cur = self.bot.cursor

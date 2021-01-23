@@ -7,7 +7,7 @@ cur = con.cursor()
 table = "temp_room"
 field = "*"
 
-cur.execute(f"SELECT field FROM {table}")
+cur.execute(f"SELECT {field} FROM {table}")
 for e in cur.fetchall():
     print(e)
 
