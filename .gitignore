@@ -3,6 +3,7 @@
 !bot.py
 !LICENCE
 !.gitignore
-!cogs
+!cogs/
+!cogs/*
 !view_db.py
 !readme.md
