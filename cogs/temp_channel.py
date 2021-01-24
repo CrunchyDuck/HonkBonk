@@ -5,10 +5,6 @@ import time
 import datetime
 import asyncio
 
-
-# TODO: Order archive room alphabetically.
-# This should be done in batch
-
 class TempChannel(commands.Cog, name="temp_channel"):
     """Allows people to set up a temporary channel for discussion. This room is archived after it is closed."""
     prefix = "room"
@@ -160,6 +156,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
         self.bot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (channel.id,))
         self.bot.cursor.execute("commit")
 
+        await TextChannel.send("Archiving channel...")
+
     @commands.command(name=f"{prefix}.time")
     async def time_left(self, ctx):
         """Changes how much time the room has left,
@@ -199,7 +197,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             destruction_type = self.rc_destroy_type.get_value()
             await ctx.send(f"This room has {time_diff} hours until {destruction_type}.")
 
-    @commands.command(name=f"{prefix}.order_archive")
+    @commands.command(name=f"{prefix}.order")
     async def order_archive(self, ctx):
         """
         Order the channels in the archive category for this server.
@@ -222,10 +220,10 @@ class TempChannel(commands.Cog, name="temp_channel"):
         order = "descending" if descending else "ascending"
         if name:
             await self.order_cat_alphabetically(archive_cat, descending)
-            await ctx.send(f"Ordered category channel by name in {order} order!")
+            await ctx.send(f"Ordered {archive_cat.name} by name in {order} order!")
         elif date:
             await self.order_cat_created(archive_cat, descending)
-            await ctx.send(f"Ordered category channel by date in {order} order!")
+            await ctx.send(f"Ordered {archive_cat.name} by date in {order} order!")
         else:
             return
 
@@ -261,7 +259,6 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
         await ctx.send(f"{channel.mention} changed to temporary room owned by {owner.name}")
         await channel.send(f"Reopened channel under ownership of {owner.name}!")
-
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
