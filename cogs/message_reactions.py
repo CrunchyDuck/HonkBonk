@@ -140,6 +140,12 @@ class Reaction(commands.Cog, name="message_reactions"):
                 await message.channel.send("trivago.")
         except:
             pass
+
+        try:
+            if re.search(r"(~)", msg):
+                await message.add_reaction("<:tilde:802886844634759168>")
+        except:
+            pass
     
     @commands.command(name=f"{prefix}.chance")
     async def chance(self, ctx):
