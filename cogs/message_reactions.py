@@ -75,6 +75,13 @@ class Reaction(commands.Cog, name="message_reactions"):
             "https://www.youtube.com/watch?v=Udj-o2m39NA": 50,  # Go the fuck to sleep story
             "Nya uwu x3 s-sleep w-well~~~ kyaaah!": 50,  # gross gay furry
         })
+        self.rc_minion = self.bot.Chance({
+            "<:eld_eye:644875878177964052>": 1,
+            "<:eld_happy:644875878416908336>": 1,
+            "<:eld_minion:644875880094498826>": 1,
+            "<:eld_sad:644876502957162506>": 1,
+            "<:eld_unknown:644876503162552321>": 1,
+        })
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -144,6 +151,12 @@ class Reaction(commands.Cog, name="message_reactions"):
         try:
             if re.search(r"(~)", msg):
                 await message.add_reaction("<:tilde:802886844634759168>")
+        except:
+            pass
+
+        try:
+            if re.search(r"(minion)", msg):
+                await message.add_reaction(self.rc_minion.get_value())
         except:
             pass
     
