@@ -218,14 +218,15 @@ class TempChannel(commands.Cog, name="temp_channel"):
         archive_cat = ctx.guild.get_channel(self.archive_category)
 
         order = "descending" if descending else "ascending"
-        if name:
-            await self.order_cat_alphabetically(archive_cat, descending)
-            await ctx.send(f"Ordered {archive_cat.name} by name in {order} order!")
-        elif date:
-            await self.order_cat_created(archive_cat, descending)
-            await ctx.send(f"Ordered {archive_cat.name} by date in {order} order!")
-        else:
-            return
+        async with ctx.typing():
+            if name:
+                await self.order_cat_alphabetically(archive_cat, descending)
+                await ctx.send(f"Ordered {archive_cat.name} by name in {order} order!")
+            elif date:
+                await self.order_cat_created(archive_cat, descending)
+                await ctx.send(f"Ordered {archive_cat.name} by date in {order} order!")
+            else:
+                return
 
     @commands.command(name=f"{prefix}.add")
     async def add_temporary_room(self, ctx):

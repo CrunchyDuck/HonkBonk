@@ -3,6 +3,7 @@ import math
 import random
 import re
 from discord.ext import commands
+import traceback
 
 
 class Reaction(commands.Cog, name="message_reactions"):
@@ -88,13 +89,12 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not await self.bot.has_perm(message, message_on_fail=False): return
         self.sleep_counter -= 1
         msg = message.content.lower()
-        random_number = random.random()  # A random value used to calculate weighted responses.
-        
+
         try:
             if re.search(r"\bhot\b", msg):
                 await message.add_reaction("<:bap:771864166294224906>")
         except:
-            pass
+            traceback.print_exc()
         
         try:
             if re.search(r"\bgay\b", msg):
@@ -102,13 +102,13 @@ class Reaction(commands.Cog, name="message_reactions"):
                 await message.add_reaction("🇼")
                 await message.add_reaction("🅾")
         except:
-            pass
+            traceback.print_exc()
         
         try:
             if re.search(r"(\s|^)(\:c|\:<|>\:|\:\(|\)\:|\;w\;|\;v\;|\;-\;|\;\;|\:\'\(|\:\'c|\:CC|T_T|T-T)(\s|$)", msg):
                 await message.add_reaction("<:sad:773036515189719046>")
         except:
-            pass
+            traceback.print_exc()
         
         try:
             if re.search(self.r_only_emoji, message.content):  # Message only contains emoji
@@ -116,7 +116,7 @@ class Reaction(commands.Cog, name="message_reactions"):
                     val = "".join(match)
                     await message.add_reaction(val)
         except:
-            pass
+            traceback.print_exc()
         
         try:
             if re.search(r"(gnight|good night|sleep well)", msg) and self.sleep_counter <= 0:
@@ -124,7 +124,7 @@ class Reaction(commands.Cog, name="message_reactions"):
                 await message.channel.send(react)
                 self.sleep_counter = 20
         except:
-            pass
+            traceback.print_exc()
         
         try:
             if re.search(r"(\s|\b|^)(f+u+r+(i+e+s+|y*))(\s|\b|$)",
@@ -132,7 +132,7 @@ class Reaction(commands.Cog, name="message_reactions"):
                 react = self.rc_furry.get_value()
                 await message.add_reaction(react)
         except:
-            pass
+            traceback.print_exc()
         
         # Attempt to react to built-in emoji.
         # What I'm doing here is trying to "react" using the contents of the user's message.
@@ -146,19 +146,27 @@ class Reaction(commands.Cog, name="message_reactions"):
             if re.search(r"(hotel?)", msg):
                 await message.channel.send("trivago.")
         except:
-            pass
+            traceback.print_exc()
 
         try:
             if re.search(r"(~)", msg):
                 await message.add_reaction("<:tilde:802886844634759168>")
         except:
-            pass
+            traceback.print_exc()
 
         try:
             if re.search(r"(minion)", msg):
                 await message.add_reaction(self.rc_minion.get_value())
         except:
-            pass
+            traceback.print_exc()
+
+        try:
+            # TODO: Add more variations of this word.
+            if re.search(r"(quack)", msg):
+                quack_file = discord.File("./attachments/quak.wav")
+                await message.channel.send(file=quack_file)
+        except:
+            traceback.print_exc()
     
     @commands.command(name=f"{prefix}.chance")
     async def chance(self, ctx):
