@@ -378,6 +378,7 @@ def allgroups(matchobject):
 # IDEA: Twitch integration to announce streams.
 # IDEA: Add timezone functions.
 # IDEA: Allow me to ban reactions on X person's messages.
+# IDEA: Custom reaction for saying someone's name?
 
 # TODO: Make bot track all roles in color_role.py, so they can be readded if someone loses their roles (E.G Kicking)
 # TODO: Change the "bot blocked members" thing to use a specific role to determine blocked members.

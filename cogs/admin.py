@@ -37,7 +37,7 @@ class Admin(commands.Cog, name="admin"):
     @commands.command(name="echo")
     async def echo(self, ctx):
         """Repeat what it was given in Discord."""
-        if not await self.bot.has_perm(ctx, admin=False, message_on_fail=False): return
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
         await ctx.send(ctx.message.content)
 
     @commands.command(name="test")

@@ -97,15 +97,17 @@ class Reaction(commands.Cog, name="message_reactions"):
         server = message.guild.id
         msg = message.content.lower()
 
-        for entry in self.emote_reactions[server]:
-            reaction_to_add = entry["react"]
-            pattern = entry["pattern"]
-            try:
-                if re.search(pattern, msg):
-                    await message.add_reaction(reaction_to_add)
-            except:
-                traceback.print_exc()
-        
+        if server in self.emote_reactions:
+            for entry in self.emote_reactions[server]:
+                reaction_to_add = entry["react"]
+                pattern = entry["pattern"]
+                try:
+                    if re.search(pattern, msg):
+                        await message.add_reaction(reaction_to_add)
+                except:
+                    traceback.print_exc()
+
+        # gay reaction
         try:
             if re.search(r"\bgay\b", msg):
                 await message.add_reaction("🅾️")
@@ -125,7 +127,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # Goodnight wishes
         try:
-            if re.search(r"(gnight|good night|sleep well)", msg) and self.sleep_counter <= 0:
+            if re.search(r"(gnight|good night|sleep well|gn)", msg) and self.sleep_counter <= 0:
                 react = self.rc_goodnight.get_value()
                 await message.channel.send(react)
                 self.sleep_counter = 20
@@ -222,7 +224,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             return
 
         # Can user add a new reaction?
-        ENTRIES_LIMIT = 2  # How many entries someone is allowed to make. TODO: Add to settings DB.
+        ENTRIES_LIMIT = 20  # How many entries someone is allowed to make. TODO: Add to settings DB.
         WORD_SIZE_LIMIT = 3  # A word must be this or longer to be valid. TODO: Add to settings DB.
         existing_entries = self.db_get("user", user.id)
         if (len(existing_entries) > ENTRIES_LIMIT) and user.id not in self.bot.admins:
@@ -256,7 +258,11 @@ class Reaction(commands.Cog, name="message_reactions"):
 
     @commands.command(name=f"{prefix}.remove")
     async def remove_reaction(self, ctx):
-        """Remove a custom reaction. Removal is based on the emote."""
+        """
+        Remove a custom reaction. Removal is based on the emote.
+        Arguments:
+            react: The emote that is tied to reactions to remove.
+        """
         if not await self.bot.has_perm(ctx): return
 
         reaction = self.bot.get_variable(ctx.message.content, key="react", type="str", default=None)
@@ -278,7 +284,7 @@ class Reaction(commands.Cog, name="message_reactions"):
     @commands.command(name=f"{prefix}")
     async def display_reactions(self, ctx):
         """Display the user's documented reactions in this server."""
-        # TODO:
+        # TODO: This.
         pass
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
