@@ -44,7 +44,7 @@ class MyBot(commands.Bot):
     # A list of "format patterns", essentially the form a variable can take.
     pformats = {
         # "bool": r"(\bTrue\b|\bFalse\b)",
-        "str": r"""(?:(?:[""”']([^"”']*)[""”'])|(\w*))""",  # Maybe not my most elegant pattern, but it functions.
+        "str": r"""(?:(?:["”'`]([^"”'`]*)["”'`])|(\w*))""",  # TODO: Update this with capture group backreferencing
         "float": r"(\d+(?:\.\d+)?)",
         "int": r"(\d+)"
     }
@@ -377,6 +377,7 @@ def allgroups(matchobject):
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
 # IDEA: Add timezone functions.
+# IDEA: Allow me to ban reactions on X person's messages.
 
 # TODO: Make bot track all roles in color_role.py, so they can be readded if someone loses their roles (E.G Kicking)
 # TODO: Change the "bot blocked members" thing to use a specific role to determine blocked members.
@@ -388,7 +389,6 @@ def allgroups(matchobject):
 # TODO: Make temp rooms announce when created/opened
 # TODO: Help command.
 # TODO: Make bot automatically update all rooms to have the same permission for the "bad" role.
-# TODO: temp_channel Order archive room alphabetically.
 # TODO: temp_channel Allow channels to be modified after creation.
 
 # FIXME: Creating custom roles currently place the role at the top of the list, over the top of admins.

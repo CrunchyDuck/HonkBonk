@@ -156,7 +156,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         self.bot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (channel.id,))
         self.bot.cursor.execute("commit")
 
-        await TextChannel.send("Archiving channel...")
+        await channel.send("Archiving channel...")
 
     @commands.command(name=f"{prefix}.time")
     async def time_left(self, ctx):
