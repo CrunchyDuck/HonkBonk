@@ -271,22 +271,32 @@ class Reaction(commands.Cog, name="message_reactions"):
             react: The emote that is tied to reactions to remove.
         """
         if not await self.bot.has_perm(ctx): return
+        user = ctx.author
+        rowid = re.search(r"(\d+)", ctx.message.content)
+        if rowid:
+            rowid = rowid.group(0)
+        else:
+            await ctx.send("Provide the ID of the custom reaction to remove.")
 
-        reaction = self.bot.get_variable(ctx.message.content, key="react", type="str", default=None)
-
-        if not reaction:
-            await ctx.send("Provide the emote of the reaction you wish to remove.")
+        if not rowid:
+            await ctx.send("Provide the ID of the custom reaction you wish to remove.")
             return
 
-        self.bot.cursor.execute("SELECT * FROM emoji_reactions WHERE server=? AND reaction=?", (ctx.guild.id, reaction))
-        db_result = self.bot.cursor.fetchone()
-        if db_result:
-            self.bot.cursor.execute("DELETE FROM emoji_reactions WHERE server=? AND reaction=?", (ctx.guild.id, reaction))
-            self.bot.cursor.execute("commit")
-            self.emote_reactions = self.pull_database()  # Refresh the database now that it's been changed.
-            await ctx.send("Custom reaction deleted.")
+        # Check the user actually owns this emote.
+        self.bot.cursor.execute(f"SELECT user FROM emoji_reactions WHERE rowid={rowid}")
+        result = self.bot.cursor.fetchone()
+        if result:
+            if user.id not in self.bot.admins and user.id != result[0]:
+                await ctx.send("You don't own this reaction.")
+                return
         else:
-            await ctx.send("Custom reaction not found.")
+            await ctx.send("No custom reaction with this id!")
+            return
+
+        self.bot.cursor.execute(f"DELETE FROM emoji_reactions WHERE rowid={rowid}")
+        self.bot.cursor.execute("commit")
+        self.emote_reactions = self.pull_database()  # Refresh the database now that it's been changed.
+        await ctx.send("Custom reaction deleted.")
 
     @commands.command(name=f"{prefix}.list")
     async def display_reactions(self, ctx):
@@ -294,6 +304,27 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not await self.bot.has_perm(ctx): return
         server = ctx.guild.id
         user = ctx.message.author.id
+
+        if server not in self.emote_reactions or user not in self.emote_reactions[server]:
+            await ctx.send("You don't have any custom reactions in this server.")
+            return
+
+        entries = self.emote_reactions[server][user]
+
+        # Create the embeds for the user to view.
+        embed = self.bot.default_embed(None)
+        description = ""
+
+        for entry in entries:
+            rowid = entry["rowid"]
+            reaction = entry["react"]
+            pattern = entry["pattern"]
+            triggers = entry["triggered"]
+            description += f"`{rowid}.` `{pattern}` {reaction}  triggered {triggers} times\n"
+
+        embed.description = description
+
+        await ctx.send(embed=embed)
 
 
 
@@ -339,7 +370,11 @@ class Reaction(commands.Cog, name="message_reactions"):
     def pull_database(self):
         """
         {
-        server_id: {user: [{"pattern": val, "react": val, "triggered": val}],},
+        server_id: {
+            user: [
+                {"pattern": val, "react": val, "triggered": val, "rowid": val},
+            ],
+        },
         }
         """
         emote_reactions = {}
