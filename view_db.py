@@ -4,10 +4,15 @@ import sqlite3
 
 con = sqlite3.connect("bot.db")
 cur = con.cursor()
-table = "temp_room"
+table = "emoji_reactions"
 field = "*"
+condition = ""
 
-cur.execute(f"SELECT {field} FROM {table}")
+#cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+cur.execute(f"SELECT {field} FROM {table} {condition}")
+#cur.executemany("UPDATE emoji_reactions SET triggered=?", gaf)
+#cur.execute("commit")
+
 for e in cur.fetchall():
     print(e)
 

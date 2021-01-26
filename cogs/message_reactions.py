@@ -203,7 +203,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             pattern: A regex pattern of strings to apply the reaction to.
         """
         if not await self.bot.has_perm(ctx, admin=True): return
-        user = ctx.author
+        user = self.bot.admin_override(ctx)
         reaction = re.search(self.r_react_add, ctx.message.content)
         word = self.bot.get_variable(ctx.message.content, key="word", type="str", default=None)
 
@@ -228,7 +228,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             return
 
         # Can user add a new reaction?
-        ENTRIES_LIMIT = 20  # How many entries someone is allowed to make. TODO: Add to settings DB.
+        ENTRIES_LIMIT = 10  # How many entries someone is allowed to make. TODO: Add to settings DB.
         WORD_SIZE_LIMIT = 3  # A word must be this or longer to be valid. TODO: Add to settings DB.
         existing_entries = self.db_get("user", user.id)
         if (len(existing_entries) > ENTRIES_LIMIT) and user.id not in self.bot.admins:
@@ -268,12 +268,9 @@ class Reaction(commands.Cog, name="message_reactions"):
             react: The emote that is tied to reactions to remove.
         """
         if not await self.bot.has_perm(ctx): return
-        user = ctx.author
+        user = self.bot.admin_override(ctx)
         rowid = re.search(r"(\d+)", ctx.message.content)
-        # If the user is a bot admin, allow them to mention a user to check that person's list.
-        if user in self.bot.admins:
-            if ctx.message.mentions:
-                user = ctx.message.mentions[0].id
+
         if rowid:
             rowid = rowid.group(0)
         else:

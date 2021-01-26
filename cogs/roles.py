@@ -16,15 +16,7 @@ class RoleControl(commands.Cog, name="roles"):
         self.init_db(bot.cursor)
 
     @commands.command(name=f"{prefix}")
-    async def fuck_discord(self, ctx):
-        """
-        Discord doesn't allow me to have more arguments in a function than it likes, even if optional.
-        This command acts as a wrapper to allow this. See colour_role
-        """
-        if not await self.bot.has_perm(ctx): return
-        await self.colour_role(ctx)
-
-    async def colour_role(self, ctx, o_user=None):
+    async def colour_role(self, ctx):
         """
         Create, or modify, a colour role.
         Arguments:
@@ -41,7 +33,7 @@ class RoleControl(commands.Cog, name="roles"):
         if not await self.bot.has_perm(ctx): return False
         content = ctx.message.content
         guild = ctx.guild
-        u = o_user if o_user else ctx.author  # If this function was called with o_user, allow someone other than the invoker.
+        u = self.bot.admin_override(ctx)
         vanity_role = None
 
         # Fetch any variables the user provided.
@@ -108,8 +100,9 @@ class RoleControl(commands.Cog, name="roles"):
 
                 # Assign this role to the person in the event it's somehow off of them.
                 new_roles = u.roles
-                new_roles.append(vanity_role)
-                await u.edit(roles=new_roles)
+                if vanity_role not in new_roles:
+                    new_roles.append(vanity_role)
+                    await u.edit(roles=new_roles)
                 return
 
             if name:
@@ -231,19 +224,6 @@ class RoleControl(commands.Cog, name="roles"):
         embed.add_field(name=":loudspeaker: Mentionable:", value=mentionable, inline=True)
 
         await ctx.send(embed=embed)
-
-    @commands.command(name=f"{prefix}.override")
-    async def role_overrider(self, ctx):
-        """
-        Allows an admin to change the vanity role of someone else.
-        See colour_role for usage example.
-        """
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False):
-            await ctx.send("nice try.")
-            return
-
-        o_user = ctx.message.mentions[0]  # The user to change the role of.
-        await self.colour_role(ctx, o_user=o_user)
 
     def get_hex(self, string):
         """Finds the first instance of a hex value in a string."""

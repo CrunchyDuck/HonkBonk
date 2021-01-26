@@ -158,6 +158,14 @@ class MyBot(commands.Bot):
         # If all falsifying checks fail, user has perms.
         return True
 
+    def admin_override(self, ctx):
+        """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
+        user = ctx.author
+        if user.id in self.admins:
+            if ctx.message.mentions:
+                user = ctx.message.mentions[0]
+        return user
+
     @staticmethod
     def get_variable(string, key=None, type=None, pattern=None, default=None):
         """
@@ -391,9 +399,12 @@ def allgroups(matchobject):
 # TODO: Help command.
 # TODO: Make bot automatically update all rooms to have the same permission for the "bad" role.
 # TODO: temp_channel Allow channels to be modified after creation.
+# TODO: Command for c.react.list to display all reactions in this server.
+# TODO: Make admins server based, not bot-wide.
 
 # FIXME: Creating custom roles currently place the role at the top of the list, over the top of admins.
 # FIXME: Emoji pushing doesn't properly assign ownership.
+# FIXME: Clear attachments after emoji push.
 
 intents = discord.Intents.all()
 bot = MyBot(bot_prefix, intents=intents)
