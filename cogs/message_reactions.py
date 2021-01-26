@@ -17,6 +17,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.r_only_emoji = re.compile(
             r"^((?:<:.*?:)(\d*)(?:>)|[\s])*$")
         self.r_get_emoji = re.compile(r"(<:.*?:)(\d*)(>)")  # Finds a discord emoji in a string.
+        self.r_react_add = re.compile(r"(?:c\.react\.add )(.+?)(?= pattern=| word=)")
 
         self.emote_reactions = []  # Filled in self.refresh_database()
         # There must be at least this many messages since the last time the "good night" wishes triggered.
@@ -108,22 +109,13 @@ class Reaction(commands.Cog, name="message_reactions"):
                     rowid = entry["rowid"]
                     try:
                         if re.search(pattern, msg):
-                            await message.add_reaction(reaction_to_add)
+                            await self.react_with_pattern(message, reaction_to_add)
                             self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered=triggered + 1 WHERE rowid={rowid}")
                             self.bot.cursor.execute("commit")
                     except discord.errors.HTTPException:  # Seems to trigger only when an emoji is missing.
                         traceback.print_exc()  # TODO: This will spam the console if the emoji doesn't exist.
                     except:
                         traceback.print_exc()
-
-        # gay reaction
-        try:
-            if re.search(r"\bgay\b", msg):
-                await message.add_reaction("🅾️")
-                await message.add_reaction("🇼")
-                await message.add_reaction("🅾")
-        except:
-            traceback.print_exc()
 
         # React back at emoji
         try:
@@ -210,11 +202,16 @@ class Reaction(commands.Cog, name="message_reactions"):
             word: The word to apply this reaction to.
             pattern: A regex pattern of strings to apply the reaction to.
         """
-        if not await self.bot.has_perm(ctx): return
+        if not await self.bot.has_perm(ctx, admin=True): return
         user = ctx.author
-        reaction = self.bot.get_variable(ctx.message.content, key="react", type="str", default=None)
+        reaction = re.search(self.r_react_add, ctx.message.content)
         word = self.bot.get_variable(ctx.message.content, key="word", type="str", default=None)
 
+        if not reaction:
+            await ctx.send("You need to provide either a word or a RegEx pattern.")
+            return
+
+        reaction = reaction.group(1)
         pattern_search = re.search(r"""pattern=(?:([`])(.+?)(\1))""", ctx.message.content)
         if pattern_search:
             pattern = pattern_search.group(2)
@@ -227,9 +224,6 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         if not word and not pattern:
             await ctx.send("You need to provide either a word or a RegEx pattern.")
-            return
-        elif not reaction:
-            await ctx.send("You need to provide a reaction.")
             return
 
         # Can user add a new reaction?
@@ -250,7 +244,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # Verify reaction can be used by honkbonk
         try:
-            await ctx.message.add_reaction(reaction)
+            await self.react_with_pattern(ctx.message, reaction)
         except:
             await ctx.send("Cannot use reaction/reaction not recognized.")
             return
@@ -372,6 +366,12 @@ class Reaction(commands.Cog, name="message_reactions"):
             
         }
         pass
+
+    async def react_with_pattern(self, message, pattern):
+        """Reacts using a pattern of emoji that've been submitted to the database."""
+        emojis = pattern.split()  # Split the pattern by spaces.
+        for emoji in emojis:
+            await message.add_reaction(emoji)
 
     def pull_database(self):
         """
