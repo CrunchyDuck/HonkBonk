@@ -210,8 +210,9 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not reaction:
             await ctx.send("You need to provide either a word or a RegEx pattern.")
             return
-
         reaction = reaction.group(1)
+
+        # FIXME: pattern is completely unsecure and anyone can put anything in. Right now i'm running off of trust.
         pattern_search = re.search(r"""pattern=(?:([`])(.+?)(\1))""", ctx.message.content)
         if pattern_search:
             pattern = pattern_search.group(2)
