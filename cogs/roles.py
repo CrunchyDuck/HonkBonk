@@ -145,8 +145,9 @@ class RoleControl(commands.Cog, name="roles"):
 
             # Assign this role to the person in the event it's somehow off of them.
             new_roles = u.roles
-            new_roles.append(vanity_role)
-            await u.edit(roles=new_roles)
+            if vanity_role not in new_roles:
+                new_roles.append(vanity_role)
+                await u.edit(roles=new_roles)
 
             await vanity_role.edit(mentionable=can_mention, name=name, colour=col)
             await ctx.send(embed=embed)
