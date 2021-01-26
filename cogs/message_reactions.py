@@ -307,6 +307,11 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not await self.bot.has_perm(ctx): return
         server = ctx.guild.id
         user = ctx.message.author.id
+        # If the user is a bot admin, allow them to mention a user to check that person's list.
+        if user in self.bot.admins:
+            if ctx.message.mentions:
+                user = ctx.message.mentions[0].id
+
         self.refresh_database()  # Refresh the database so the correct data is displayed.
 
         if server not in self.emote_reactions or user not in self.emote_reactions[server]:
