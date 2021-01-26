@@ -270,6 +270,10 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not await self.bot.has_perm(ctx): return
         user = ctx.author
         rowid = re.search(r"(\d+)", ctx.message.content)
+        # If the user is a bot admin, allow them to mention a user to check that person's list.
+        if user in self.bot.admins:
+            if ctx.message.mentions:
+                user = ctx.message.mentions[0].id
         if rowid:
             rowid = rowid.group(0)
         else:
