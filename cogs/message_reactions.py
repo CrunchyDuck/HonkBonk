@@ -275,6 +275,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             rowid = rowid.group(0)
         else:
             await ctx.send("Provide the ID of the custom reaction to remove.")
+            return
 
         if not rowid:
             await ctx.send("Provide the ID of the custom reaction you wish to remove.")
@@ -329,6 +330,24 @@ class Reaction(commands.Cog, name="message_reactions"):
         embed.description = description
 
         await ctx.send(embed=embed)
+
+    @commands.command(name=f"{prefix}.triggered")
+    async def edit_triggered(self, ctx):
+        """Allows an admin to change the amount of times a reaction has been triggered."""
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+        values = re.search(r"(\d+) (\d+)", ctx.message.content)
+        if not values:
+            return
+
+        id = values.group(1)
+        value = values.group(2)
+
+        self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered={value} WHERE rowid={id}")
+        self.bot.cursor.execute("commit")
+        self.refresh_database()
+
+        await ctx.send("Changed triggered amount!")
+
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     
