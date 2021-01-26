@@ -103,9 +103,13 @@ class Reaction(commands.Cog, name="message_reactions"):
                 for entry in self.emote_reactions[server][user]:
                     reaction_to_add = entry["react"]
                     pattern = entry["pattern"]
+                    rowid = entry["rowid"]
                     try:
                         if re.search(pattern, msg):
                             await message.add_reaction(reaction_to_add)
+                            self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered=triggered + 1 WHERE rowid={rowid}")
+                            self.bot.cursor.execute("commit")
+
                     except:
                         traceback.print_exc()
 
@@ -249,7 +253,8 @@ class Reaction(commands.Cog, name="message_reactions"):
             return
 
         # Add reaction data to database
-        self.bot.cursor.execute("INSERT into emoji_reactions VALUES (?, ?, ?, ?)", (user.id, ctx.guild.id, pattern, reaction))
+        self.bot.cursor.execute("INSERT into emoji_reactions VALUES (?, ?, ?, ?, ?, ?)",
+                                (user.id, ctx.guild.id, pattern, reaction, 0, 0))
         self.bot.cursor.execute("commit")
         self.emote_reactions = self.pull_database()  # Refresh the database now that it's been changed.
 
@@ -338,16 +343,15 @@ class Reaction(commands.Cog, name="message_reactions"):
         }
         """
         emote_reactions = {}
-        self.bot.cursor.execute("SELECT * FROM emoji_reactions ORDER BY server")
+        self.bot.cursor.execute("SELECT rowid, * FROM emoji_reactions ORDER BY server")
         for entry in self.bot.cursor.fetchall():
-            if not entry[1] in emote_reactions:  # Create dictionary for this server entry if it doesn't already exist.
-                emote_reactions[entry[1]] = {}
-            if not entry[0] in emote_reactions[entry[1]]:  # Create dictionary for this user in this server.
-                emote_reactions[entry[1]][entry[0]] = []
+            if not entry[2] in emote_reactions:  # Create dictionary for this server entry if it doesn't already exist.
+                emote_reactions[entry[2]] = {}
+            if not entry[1] in emote_reactions[entry[2]]:  # Create dictionary for this user in this server.
+                emote_reactions[entry[2]][entry[1]] = []
 
-            emote_reactions[entry[1]][entry[0]].append({"pattern": entry[2], "react": entry[3], "triggered": entry[4]})
+            emote_reactions[entry[2]][entry[1]].append({"pattern": entry[3], "react": entry[4], "triggered": entry[5], "rowid": entry[0]})
 
-        print(emote_reactions)
         return emote_reactions
 
     def db_get(self, field, value):
@@ -380,9 +384,9 @@ class Reaction(commands.Cog, name="message_reactions"):
             "server INTEGER,"  # The server this was added to.
             "pattern STRING,"  # The regex pattern to search with.
             "reaction STRING,"  # The reaction to add.
-            "triggered INTEGER"  # Number of times this has been triggered.
+            "triggered INTEGER,"  # Number of times this has been triggered.
+            "snowflake INTEGER"  # Redundant column, but SQLite 3 doesn't let you remove columns???
             ")")
-        #cursor.execute("ALTER TABLE emoji_reactions ADD COLUMN triggered INTEGER")
         cursor.execute("commit")
 
 
