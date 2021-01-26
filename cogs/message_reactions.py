@@ -235,12 +235,11 @@ class Reaction(commands.Cog, name="message_reactions"):
             return
 
         # Turn "word" param into regex pattern
-        # TODO: Add support for multiple emoji in one react.
         if word:
             if len(word) < WORD_SIZE_LIMIT:
                 await ctx.send(f"Word must be at least {WORD_SIZE_LIMIT} characters long.")
                 return
-            pattern = rf"({word})"  # Not adding word boundaries around this will make it trigger more often. Chaos.
+            pattern = re.escape(f"{word}")  # Make the word safe for regex.
 
         # Verify reaction can be used by honkbonk
         try:
