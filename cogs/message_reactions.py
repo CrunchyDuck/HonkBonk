@@ -18,6 +18,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             r"^((?:<:.*?:)(\d*)(?:>)|[\s])*$")
         self.r_get_emoji = re.compile(r"(<:.*?:)(\d*)(>)")  # Finds a discord emoji in a string.
 
+        self.emote_reactions = []  # Filled in self.refresh_database()
         # There must be at least this many messages since the last time the "good night" wishes triggered.
         self.sleep_counter = 20
         
@@ -75,6 +76,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             "お休み！": 70,
             "nyadios": 70,
             "oidhche mhath": 70,
+            "أبام": 70,
             
             "https://www.youtube.com/watch?v=Udj-o2m39NA": 50,  # Go the fuck to sleep story
             "Nya uwu x3 s-sleep w-well~~~ kyaaah!": 50,  # gross gay furry
@@ -89,7 +91,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         })
 
         self.db_init()
-        self.emote_reactions = self.pull_database()
+        self.refresh_database()
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -109,7 +111,8 @@ class Reaction(commands.Cog, name="message_reactions"):
                             await message.add_reaction(reaction_to_add)
                             self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered=triggered + 1 WHERE rowid={rowid}")
                             self.bot.cursor.execute("commit")
-
+                    except discord.errors.HTTPException:  # Seems to trigger only when an emoji is missing.
+                        traceback.print_exc()  # TODO: This will spam the console if the emoji doesn't exist.
                     except:
                         traceback.print_exc()
 
@@ -175,7 +178,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         try:
             # TODO: Add more variations of this word.
             if re.search(r"(quack)", msg):
-                quack_file = discord.File("./attachments/quak.wav")
+                quack_file = discord.File("./attachments/quak.mp3")
                 await message.channel.send(file=quack_file)
         except:
             traceback.print_exc()
@@ -256,7 +259,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.bot.cursor.execute("INSERT into emoji_reactions VALUES (?, ?, ?, ?, ?, ?)",
                                 (user.id, ctx.guild.id, pattern, reaction, 0, 0))
         self.bot.cursor.execute("commit")
-        self.emote_reactions = self.pull_database()  # Refresh the database now that it's been changed.
+        self.refresh_database()  # Refresh the database now that it's been changed.
 
         if word:
             await ctx.send(f"Reaction {reaction} added to \"{word}\"")
@@ -295,7 +298,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         self.bot.cursor.execute(f"DELETE FROM emoji_reactions WHERE rowid={rowid}")
         self.bot.cursor.execute("commit")
-        self.emote_reactions = self.pull_database()  # Refresh the database now that it's been changed.
+        self.refresh_database()  # Refresh the database now that it's been changed.
         await ctx.send("Custom reaction deleted.")
 
     @commands.command(name=f"{prefix}.list")
@@ -304,6 +307,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         if not await self.bot.has_perm(ctx): return
         server = ctx.guild.id
         user = ctx.message.author.id
+        self.refresh_database()  # Refresh the database so the correct data is displayed.
 
         if server not in self.emote_reactions or user not in self.emote_reactions[server]:
             await ctx.send("You don't have any custom reactions in this server.")
@@ -325,9 +329,6 @@ class Reaction(commands.Cog, name="message_reactions"):
         embed.description = description
 
         await ctx.send(embed=embed)
-
-
-
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     
@@ -388,6 +389,9 @@ class Reaction(commands.Cog, name="message_reactions"):
             emote_reactions[entry[2]][entry[1]].append({"pattern": entry[3], "react": entry[4], "triggered": entry[5], "rowid": entry[0]})
 
         return emote_reactions
+
+    def refresh_database(self):
+        self.emote_reactions = self.pull_database()
 
     def db_get(self, field, value):
         """
