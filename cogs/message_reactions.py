@@ -6,6 +6,7 @@ from discord.ext import commands
 import traceback
 
 
+# TODO: Document how many times a reaction is called, and what module it was called from.
 class Reaction(commands.Cog, name="message_reactions"):
     """Reacts to various chat messages with emotes or messages."""
     prefix = "react"
@@ -98,14 +99,15 @@ class Reaction(commands.Cog, name="message_reactions"):
         msg = message.content.lower()
 
         if server in self.emote_reactions:
-            for entry in self.emote_reactions[server]:
-                reaction_to_add = entry["react"]
-                pattern = entry["pattern"]
-                try:
-                    if re.search(pattern, msg):
-                        await message.add_reaction(reaction_to_add)
-                except:
-                    traceback.print_exc()
+            for user in self.emote_reactions[server]:  # Search through each user's custom emotes.
+                for entry in self.emote_reactions[server][user]:
+                    reaction_to_add = entry["react"]
+                    pattern = entry["pattern"]
+                    try:
+                        if re.search(pattern, msg):
+                            await message.add_reaction(reaction_to_add)
+                    except:
+                        traceback.print_exc()
 
         # gay reaction
         try:
@@ -268,7 +270,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         reaction = self.bot.get_variable(ctx.message.content, key="react", type="str", default=None)
 
         if not reaction:
-            ctx.send("Provide the emote of the reaction you wish to remove.")
+            await ctx.send("Provide the emote of the reaction you wish to remove.")
             return
 
         self.bot.cursor.execute("SELECT * FROM emoji_reactions WHERE server=? AND reaction=?", (ctx.guild.id, reaction))
@@ -281,11 +283,15 @@ class Reaction(commands.Cog, name="message_reactions"):
         else:
             await ctx.send("Custom reaction not found.")
 
-    @commands.command(name=f"{prefix}")
+    @commands.command(name=f"{prefix}.list")
     async def display_reactions(self, ctx):
         """Display the user's documented reactions in this server."""
-        # TODO: This.
-        pass
+        if not await self.bot.has_perm(ctx): return
+        server = ctx.guild.id
+        user = ctx.message.author.id
+
+
+
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     
@@ -328,17 +334,20 @@ class Reaction(commands.Cog, name="message_reactions"):
     def pull_database(self):
         """
         {
-        server_id: [{"user": val, "pattern": val, "react": val},],
+        server_id: {user: [{"pattern": val, "react": val, "triggered": val}],},
         }
         """
         emote_reactions = {}
         self.bot.cursor.execute("SELECT * FROM emoji_reactions ORDER BY server")
         for entry in self.bot.cursor.fetchall():
-            if not entry[1] in emote_reactions:  # Create dictionary entry if it doesn't already exist.
-                emote_reactions[entry[1]] = []
+            if not entry[1] in emote_reactions:  # Create dictionary for this server entry if it doesn't already exist.
+                emote_reactions[entry[1]] = {}
+            if not entry[0] in emote_reactions[entry[1]]:  # Create dictionary for this user in this server.
+                emote_reactions[entry[1]][entry[0]] = []
 
-            emote_reactions[entry[1]].append({"user": entry[0], "pattern": entry[2], "react": entry[3]})
+            emote_reactions[entry[1]][entry[0]].append({"pattern": entry[2], "react": entry[3], "triggered": entry[4]})
 
+        print(emote_reactions)
         return emote_reactions
 
     def db_get(self, field, value):
@@ -370,8 +379,10 @@ class Reaction(commands.Cog, name="message_reactions"):
             "user INTEGER,"  # ID of the user who added this.
             "server INTEGER,"  # The server this was added to.
             "pattern STRING,"  # The regex pattern to search with.
-            "reaction STRING"  # The reaction to add.
+            "reaction STRING,"  # The reaction to add.
+            "triggered INTEGER"  # Number of times this has been triggered.
             ")")
+        #cursor.execute("ALTER TABLE emoji_reactions ADD COLUMN triggered INTEGER")
         cursor.execute("commit")
 
 
