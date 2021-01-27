@@ -130,7 +130,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # Goodnight wishes
         try:
-            if re.search(r"(gnight|good night|sleep well|gn)", msg) and self.sleep_counter <= 0:
+            if re.search(r"(gnight|good night|sleep well|\bgn\b)", msg) and self.sleep_counter <= 0:
                 react = self.rc_goodnight.get_value()
                 await message.channel.send(react)
                 self.sleep_counter = 20
