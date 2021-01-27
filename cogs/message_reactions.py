@@ -18,6 +18,8 @@ class Reaction(commands.Cog, name="message_reactions"):
             r"^((?:<:.*?:)(\d*)(?:>)|[\s])*$")
         self.r_get_emoji = re.compile(r"(<:.*?:)(\d*)(>)")  # Finds a discord emoji in a string.
         self.r_react_add = re.compile(r"(?:c\.react\.add )(.+?)(?= pattern=| word=)")
+        # From https://regexr.com/3ajfi
+        self.r_website = re.compile(r"([--:\w?@%&+~#=]*\.[a-z]{2,4}\/{0,2})((?:[?&](?:\w+)=(?:\w+))+|[--:\w?@%&+~#=]+)?")
 
         self.emote_reactions = []  # Filled in self.refresh_database()
         # There must be at least this many messages since the last time the "good night" wishes triggered.
@@ -100,6 +102,9 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.sleep_counter -= 1
         server = message.guild.id
         msg = message.content.lower()
+
+        # Ignore messages with links.
+        if re.search(self.r_website, msg): return
 
         if server in self.emote_reactions:
             for user in self.emote_reactions[server]:  # Search through each user's custom emotes.
