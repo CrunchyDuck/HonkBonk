@@ -320,14 +320,25 @@ class Reaction(commands.Cog, name="message_reactions"):
         embed = self.bot.default_embed(None)
         description = ""
 
+        ids = ""
+        reactions = ""
+        patterns = ""
+
         for entry in entries:
             rowid = entry["rowid"]
             reaction = entry["react"]
             pattern = entry["pattern"]
-            triggers = entry["triggered"]
-            description += f"`{rowid}.` `{pattern}` {reaction}  triggered {triggers} times\n"
+            trigger = entry["triggered"]
 
-        embed.description = description
+            ids += f"`{rowid}`\n"
+            reactions += f"`({trigger})` {reaction}\n"
+            patterns += f"`{pattern}"[:40] + "`\n"
+            #triggers += f"{trigger}\n"
+            #description += f"`{rowid}.` `{pattern}` {reaction}  triggered {triggers} times\n"
+
+        embed.add_field(name="ID", value=ids)
+        embed.add_field(name="(trig) reactions", value=reactions)
+        embed.add_field(name="patterns", value=patterns)
 
         await ctx.send(embed=embed)
 
@@ -451,6 +462,15 @@ class Reaction(commands.Cog, name="message_reactions"):
             "triggered INTEGER,"  # Number of times this has been triggered.
             "snowflake INTEGER"  # Redundant column, but SQLite 3 doesn't let you remove columns???
             ")")
+        #cursor.execute(
+        #    "CREATE TABLE IF NOT EXISTS pending_reactions ("  # A table that stores the proposed reactions by users.
+        #    "user INTEGER,"  # ID of the user who added this.
+        #    "server INTEGER,"  # The server this was added to.
+        #    "pattern STRING,"  # The regex pattern to search with.
+        #    "reaction STRING,"  # The reaction to add.
+        #    "triggered INTEGER,"  # Number of times this has been triggered.
+        #    "snowflake INTEGER"
+        #    ")")
         cursor.execute("commit")
 
 
