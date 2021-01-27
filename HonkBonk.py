@@ -97,16 +97,35 @@ class MyBot(commands.Bot):
             ")")
         cursor.execute("commit")
 
-    def db_read_setting(self, server_id, key, default=False):
-        """Fetches a key from the settings table in the database. Returns default if no entry exists."""
-        self.cursor.execute(f"SELECT value FROM settings WHERE server={server_id} AND key={key}")
-        result = self.cursor.fetchone()
-        if result:
-            return result[0]
-        else:
-            return default
+        # Setting keys:
+        # ignore: Ignore a channel, category, user.
 
-    async def has_perm(self, input, admin=False, dm=False, ignore_bot=True, banned_users=False, message_on_fail=True, bot_room=False):
+    def db_read_setting(self, server_id, key, default=None):
+        """Fetches all entries for a key from the settings table in the database. Returns default if no entry exists."""
+        self.cursor.execute(f"SELECT value FROM settings WHERE server={server_id} AND key={key}")
+        result = self.cursor.fetchall()
+        if result:
+            return result
+        elif default is not None:
+            return default
+        else:
+            # Get default from database
+            self.cursor.execute(f"SELECT value FROM settings WHERE server=0 AND key={key}")
+            result = self.cursor.fetchall()
+            return result
+
+    def db_add_setting(self, server_id, key, value):
+        """
+        """
+        self.cursor.execute(f"INSERT INTO settings VALUES(?, ?, ?)", (server_id, key, value))
+        self.cursor.execute("commit")
+
+    def db_remove_setting(self, server_id, key, value=None):
+        """Deletes a server setting."""
+        #self.cursor.execute(f"DELETE FROM settings ")
+
+    async def has_perm(self, input, admin=False, dm=False, ignore_bot=True, banned_users=False, message_on_fail=True,
+                       bot_room=False, ignored_rooms=False):
         """
         Common permissions to be checked to see if this user is allowed to run a command.
         Arguments:
@@ -117,6 +136,7 @@ class MyBot(commands.Bot):
             banned_users: Whether to allow even banned users to use this command.
             message_on_fail: Whether to notify the user that the command failed if possible.
             bot_room: Whether this command should only run in bot rooms.
+            ignored_rooms: Whether this command can be used in ignored rooms.
         """
         # TODO: Allow for a list of "ignored rooms" to be added to the permissions check.
 
@@ -155,8 +175,20 @@ class MyBot(commands.Bot):
         if not dm and channel.type is discord.ChannelType.private:
             return False
 
+        if not ignored_rooms and self.is_room_ignored(b_ctx):
+            return False
+
         # If all falsifying checks fail, user has perms.
         return True
+
+    def is_room_ignored(self, ctx):
+        server = ctx.guild.id
+        room_id = ctx.channel.id
+        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={room_id}", ("ignore",))
+        if self.cursor.fetchone():
+            return True
+        else:
+            return False
 
     def admin_override(self, ctx):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
@@ -229,6 +261,12 @@ class MyBot(commands.Bot):
         timestamp = ((int(snowflake) >> 22) + 1420070400000) / 1000
         dt = datetime.fromtimestamp(timestamp)
         return dt.strftime(strftime_val)
+
+    @staticmethod
+    def hours_from_now(hours):
+        """Calculates the Unix Epoch Time in the given amount of hours. UTC time."""
+        duration_seconds = hours * 60 * 60  # Convert the duration to seconds.
+        return time.mktime(datetime.now().timetuple()) + duration_seconds
 
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.
@@ -335,7 +373,7 @@ async def timed_loop(aBot):
     Arguments:
         aBot: The bot to run the functions on.
     """
-    loop_ticks = 30  # How regularly, in seconds, the loop is run.
+    loop_ticks = 5  # How regularly, in seconds, the loop is run.
     while True:
         await asyncio.sleep(loop_ticks)
         time_now = time.mktime(datetime.now().timetuple())  # Current Unix Epoch time.
@@ -364,7 +402,7 @@ async def timed_loop(aBot):
                     aBot.cursor.execute("commit")
                 else:
                     break
-        except Exception as e:
+        except:
             traceback.print_exc()
 
         # == Reminder ==
@@ -379,15 +417,17 @@ def allgroups(matchobject):
 
     return string
 
-
 # IDEA: Command to make a temporary room for discussion.
 # IDEA: A function for the bot that will take an image, and turn it into a Waveform/vectorscope/histogram analysis because they look fucking rad
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
 # IDEA: Add timezone functions.
 # IDEA: Allow me to ban reactions on X person's messages.
-# IDEA: Custom reaction for saying someone's name?
+# IDEA: Quote database.
+# IDEA: Github integration
 
+# TODO: Set up Doxygen html documentation.
+# TODO: Add server admins as viable "bot admins"
 # TODO: Make bot track all roles in color_role.py, so they can be readded if someone loses their roles (E.G Kicking)
 # TODO: Change the "bot blocked members" thing to use a specific role to determine blocked members.
 # TODO: Add "Bot channel only" check.
@@ -401,6 +441,7 @@ def allgroups(matchobject):
 # TODO: temp_channel Allow channels to be modified after creation.
 # TODO: Command for c.react.list to display all reactions in this server.
 # TODO: Make admins server based, not bot-wide.
+# TODO: Manage reactions on edited messages.
 
 # FIXME: Creating custom roles currently place the role at the top of the list, over the top of admins.
 # FIXME: Emoji pushing doesn't properly assign ownership.
@@ -419,7 +460,6 @@ logger.addHandler(handler)
 
 # Runs only the listed cogs
 # TODO: Learn how this works so I can use this in other code things I do, hotswitching modules is really cool.
-# TODO: Create a "Core" module that handles this hotswitching, so I can control what modules to load/unload from within discord.
 for cog in bot.active_cogs:
     bot.load_extension(f"cogs.{cog}")
 bot.load_extension(f"cogs.help")  # This has to be loaded after all of the others, such that all other cogs load before.

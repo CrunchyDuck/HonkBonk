@@ -15,6 +15,7 @@ class RoleControl(commands.Cog, name="roles"):
         self.bot = bot
         self.init_db(bot.cursor)
 
+    # TODO: Change this to .vanity
     @commands.command(name=f"{prefix}")
     async def colour_role(self, ctx):
         """

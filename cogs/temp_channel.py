@@ -79,7 +79,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         if not await self.bot.has_perm(ctx): return
 
         message = ctx.message
-        author = message.author.id
+        author = self.bot.admin_override(ctx).id
         self.bot.cursor.execute("SELECT * FROM temp_room WHERE id=?", (author,))
         if self.bot.cursor.fetchone():  # If someone has a room open, don't allow them to make a new one.
             await ctx.send(f"You already have a room open! Use c.{self.prefix}.close to close it.")
@@ -90,7 +90,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
         topic = self.bot.get_variable(message.content, "topic", type="str", default="")
 
-        end_time = self.hours_from_now(duration)
+        end_time = self.bot.hours_from_now(duration)
         
         # Input checks.
         if not name:
@@ -115,13 +115,13 @@ class TempChannel(commands.Cog, name="temp_channel"):
         response_message = ""
         response_type = self.rc_room.get_value()
         if response_type == "hours":
-            response_message = f"Created {created_channel.name} for {duration} hours."
+            response_message = f"Created {created_channel.mention} for {duration} hours."
         elif response_type == "minutes":
-            response_message = f"Created {created_channel.name} for {duration * 60} minutes."
+            response_message = f"Created {created_channel.mention} for {duration * 60} minutes."
         elif response_type == "seconds":
-            response_message = f"Created {created_channel.name} for {duration * 60 * 60} seconds."
+            response_message = f"Created {created_channel.mention} for {duration * 60 * 60} seconds."
         elif response_type == "milliseconds":
-            response_message = f"Created {created_channel.name} for {duration * 60 * 60 * 1000} milliseconds."
+            response_message = f"Created {created_channel.mention} for {duration * 60 * 60 * 1000} milliseconds."
         else:
             response_message = "Crunchydunk broke chances. Room created."
         
@@ -185,7 +185,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         if hours:
             if (db_entry[0] == user.id or user.id in self.bot.admins):
                 cur = self.bot.cursor
-                end_time = self.hours_from_now(hours)
+                end_time = self.bot.hours_from_now(hours)
                 cur.execute(f"UPDATE temp_room SET end_time={end_time} WHERE room_id={channel.id}")
                 cur.execute("commit")
                 await ctx.send(f"The room's lifespan has been changed to {hours} hours!")
@@ -247,7 +247,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         channel = message.channel_mentions[0] if message.channel_mentions else ctx.channel
         duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
 
-        end_time = self.hours_from_now(duration)
+        end_time = self.bot.hours_from_now(duration)
 
         self.bot.cursor.execute("SELECT * FROM temp_room WHERE room_id=?", (channel.id,))
         if self.bot.cursor.fetchone():
@@ -288,12 +288,6 @@ class TempChannel(commands.Cog, name="temp_channel"):
             if channel.position == i:
                 continue
             await channel.edit(position=i)
-
-    @staticmethod
-    def hours_from_now(hours):
-        """Calculates the Unix Epoch Time in the given amount of hours. UTC time."""
-        duration_seconds = hours * 60 * 60  # Convert the duration to seconds.
-        return time.mktime(datetime.datetime.now().timetuple()) + duration_seconds
 
     def db_temp_room(self, channel_id):
         """Find an entry in the temp_room database from the room_id."""

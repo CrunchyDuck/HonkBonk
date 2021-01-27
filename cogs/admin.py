@@ -44,7 +44,7 @@ class Admin(commands.Cog, name="admin"):
     async def test(self, ctx):
         """Misc code I needed to test."""
         if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
-        await ctx.send(self.bot.date_from_snowflake(802295879549452310))
+        await ctx.message.add_reaction("<:caffeine:773749792865779743>")
 
     @commands.command(name="print")
     async def print_message(self, ctx):
@@ -91,6 +91,10 @@ class Admin(commands.Cog, name="admin"):
         content = ctx.message.content[30:]
 
         await target.send(content)
+
+    @commands.command(name="ignore")
+    async def ignore_channel(self, ctx):
+        pass
 
 def setup(bot):
     bot.add_cog(Admin(bot))
