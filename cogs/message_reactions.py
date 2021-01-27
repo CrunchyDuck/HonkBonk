@@ -114,6 +114,8 @@ class Reaction(commands.Cog, name="message_reactions"):
                             self.bot.cursor.execute("commit")
                     except discord.errors.HTTPException:  # Seems to trigger only when an emoji is missing.
                         traceback.print_exc()  # TODO: This will spam the console if the emoji doesn't exist.
+                    except discord.errors.Forbidden:  # Don't have permission/too many emoji attached to message.
+                        pass
                     except:
                         traceback.print_exc()
 
@@ -202,7 +204,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             word: The word to apply this reaction to.
             pattern: A regex pattern of strings to apply the reaction to.
         """
-        if not await self.bot.has_perm(ctx, admin=True): return
+        if not await self.bot.has_perm(ctx): return
         user = self.bot.admin_override(ctx)
         reaction = re.search(self.r_react_add, ctx.message.content)
         word = self.bot.get_variable(ctx.message.content, key="word", type="str", default=None)
@@ -318,7 +320,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # Create the embeds for the user to view.
         embed = self.bot.default_embed(None)
-        description = ""
+        num_of_entries = len(entries)
 
         ids = ""
         reactions = ""
@@ -339,6 +341,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         embed.add_field(name="ID", value=ids)
         embed.add_field(name="(trig) reactions", value=reactions)
         embed.add_field(name="patterns", value=patterns)
+        embed.set_footer(text=f"{num_of_entries}/10 custom reactions")
 
         await ctx.send(embed=embed)
 
@@ -358,7 +361,6 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.refresh_database()
 
         await ctx.send("Changed triggered amount!")
-
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     
