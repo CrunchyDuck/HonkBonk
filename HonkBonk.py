@@ -405,7 +405,33 @@ async def timed_loop(aBot):
         except:
             traceback.print_exc()
 
-        # == Reminder ==
+        # ======= Temp role =======
+        try:
+            aBot.cursor.execute("SELECT * FROM temp_role ORDER BY end_time ASC")
+            targets = aBot.cursor.fetchall()
+            for target in targets:
+                if time_now > target[2]:
+                    server = aBot.get_guild(target[0])
+                    member = server.get_member(target[1])
+                    role = discord.Object(target[3])
+
+                    if member is None:
+                        # Member could not be found
+                        print("member not found.")
+                    try:
+                        await member.remove_roles(role, reason="Temporary role end time.")
+                    except discord.errors.Forbidden:
+                        # Don't have the permissions.
+                        pass
+                    except discord.errors.HTTPException:
+                        # Failed.
+                        pass
+                else:
+                    break
+
+                    # Send message in logging channel about the role being removed.
+        except:
+            traceback.print_exc()
 
 
 def allgroups(matchobject):

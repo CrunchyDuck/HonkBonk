@@ -1,6 +1,7 @@
 import discord
 import re
 from discord.ext import commands
+import traceback
 
 
 class RoleControl(commands.Cog, name="roles"):
@@ -226,6 +227,67 @@ class RoleControl(commands.Cog, name="roles"):
 
         await ctx.send(embed=embed)
 
+    @commands.command(name=f"{prefix}.apply")
+    async def apply_role(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True): return False
+        message = ctx.message
+        content = message.content
+        time = float(self.bot.get_variable(content, "time", type="float", default=0))
+        roles = message.role_mentions
+        user = message.mentions
+
+        # Find the member
+        if user:
+            user = message.mentions[0]
+        else:
+            user_id = int(self.bot.get_variable(content, "user", type="int", default=0))
+            if not user_id:
+                await ctx.send("Mention a user or provide their id as user=id")
+                return
+            user = ctx.guild.get_member(user_id)
+            if not user:
+                await ctx.send(f"Cannot find member with id {user_id}")
+                return
+
+        # Find the role
+        if roles:
+            roles = roles[0]
+        else:
+            role_id = int(self.bot.get_variable(content, "role", type="int", default=0))
+            if not role_id:
+                await ctx.send("Mention a role or provide its id as role=id")
+                return
+            roles = ctx.guild.get_role(role_id)
+            if not roles:
+                await ctx.send(f"Cannot find role with id {role_id}")
+                return
+
+        # Apply the role to the user
+        try:
+            await user.add_roles(roles)
+        except discord.errors.Forbidden:
+            await ctx.send("I need the manage roles permission for this, and the role must be lower than my highest role.")
+            return
+        except discord.errors.HTTPException:
+            await ctx.send("Adding role failed.")
+            return
+        except:
+            traceback.print_exc()
+            return
+
+        # If the time, do
+        if time != 0:
+            end_time = self.bot.hours_from_now(time)
+            self.bot.cursor.execute(f"INSERT INTO temp_role VALUES({ctx.guild.id}, {user.id}, {end_time}, {roles.id})")
+            self.bot.cursor.execute("commit")
+            await ctx.send(f"Role added for {time} hours!")
+        else:
+            await ctx.send(f"Role added!")
+
+    @commands.command(name=f"{prefix}.remove")
+    async def remove_role(self, ctx):
+        pass
+
     def get_hex(self, string):
         """Finds the first instance of a hex value in a string."""
         hex_match = re.search(self.re_hex, string)
@@ -240,6 +302,13 @@ class RoleControl(commands.Cog, name="roles"):
             "CREATE TABLE IF NOT EXISTS vanity_role ("  # An entry is created for each change that is detected.
             "id INTEGER,"  # ID of the user
             "role_id INTEGER"  # The ID of this user's vanity role.
+            ")")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS temp_role ("  # An entry is created for each change that is detected.
+            "server INTEGER,"  # ID of the server
+            "user_id INTEGER,"  # ID of the user
+            "end_time INTEGER,"  # The time this role should be removed.
+            "role_ids INTEGER"  # The ID of this user's vanity role.
             ")")
         cursor.execute("commit")
 
