@@ -315,7 +315,67 @@ class RoleControl(commands.Cog, name="roles"):
 
     @commands.command(name=f"{prefix}.remove")
     async def remove_role(self, ctx):
-        pass
+        """
+        Adds a role to a user, optionally for an amount of time.
+        Arguments:
+            (Required)
+            user: The user to apply the role to. This can be provided as an argument of their ID, or as a mention.
+            role: The role to apply to the user. This can be provided as an argument of its ID, or as a mention.
+        Examples:
+              c.role.remove @pidge @straight
+              c.role.remove user=565879875647438851 role=771924151950114846
+        """
+        if not await self.bot.has_perm(ctx, admin=True): return False
+        message = ctx.message
+        roles = message.role_mentions
+        user = message.mentions
+
+        # Find the member
+        if user:
+            user = message.mentions[0]
+        else:
+            user_id = int(self.bot.get_variable(content, "user", type="int", default=0))
+            if not user_id:
+                await ctx.send("Mention a user or provide their id as user=id")
+                return
+            user = ctx.guild.get_member(user_id)
+            if not user:
+                await ctx.send(f"Cannot find member with id {user_id}")
+                return
+
+        # Find the role
+        if roles:
+            roles = roles[0]
+        else:
+            role_id = int(self.bot.get_variable(content, "role", type="int", default=0))
+            if not role_id:
+                await ctx.send("Mention a role or provide its id as role=id")
+                return
+            roles = ctx.guild.get_role(role_id)
+            if not roles:
+                await ctx.send(f"Cannot find role with id {role_id}")
+                return
+
+        try:
+            await user.remove_roles(roles, reason="Role remove command")
+        except discord.errors.Forbidden:
+            await ctx.send("I require manage roles, and the role I'm removing must be lower than my highest role.")
+            return
+        except discord.errors.HTTPException:
+            await ctx.send("Failed removing role.")
+            return
+        except:
+            traceback.print_exc()
+
+        await ctx.send(f"{roles.name} removed from {user.name}.")
+
+        # Check if this role and user have an entry in the temp_role database
+        self.bot.cursor.execute(
+            f"SELECT rowid FROM temp_role WHERE"
+            f" user_id={user.id} AND server={ctx.guild.id} AND role_ids={roles.id}")
+        results = self.bot.cursor.fetchall()
+
+        self.bot.cursor.executemany("DELETE FROM temp_role WHERE rowid=?", results)
 
     def get_hex(self, string):
         """Finds the first instance of a hex value in a string."""
