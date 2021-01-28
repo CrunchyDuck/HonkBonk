@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from random import random
 import traceback
 import json
+from math import trunc
 
 # TODO: Find some way to integrate my variable passing system from discord-powers, as it is way better than discord's methods.
 
@@ -63,7 +64,6 @@ class MyBot(commands.Bot):
             630930243464462346,  # Pika
         ]
         self.banned_from_commands = [  # Any users who have been banned from using these commands. Bad boys.
-
         ]
         self.zws = "\u200b"  # An empty character, used when a field *requires* a value I don't want to give (normally embeds)
 
@@ -268,6 +268,30 @@ class MyBot(commands.Bot):
         """Calculates the Unix Epoch Time in the given amount of hours. UTC time."""
         duration_seconds = hours * 60 * 60  # Convert the duration to seconds.
         return time.mktime(datetime.now().timetuple()) + duration_seconds
+
+    @staticmethod
+    def time_to_string(seconds=0, minutes=0, hours=0, days=0):
+        """Returns the provided time as a string."""
+        # Convert provided values to seconds.
+        time = (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer in the end.
+        days, remainder = divmod(time, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        timestring = ""
+        if days:
+            timestring += f"{trunc(days)} days, "
+        if hours:
+            timestring += f"{trunc(hours)} hours, "
+        if minutes:
+            timestring += f"{trunc(minutes)} minutes, "
+        if seconds:
+            timestring += f"{trunc(seconds)} seconds, "
+
+        if timestring:
+            timestring = timestring[:-2]  # Crop the last two characters
+
+        return timestring
 
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.

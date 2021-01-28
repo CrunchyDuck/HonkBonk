@@ -229,6 +229,20 @@ class RoleControl(commands.Cog, name="roles"):
 
     @commands.command(name=f"{prefix}.apply")
     async def apply_role(self, ctx):
+        """
+        Adds a role to a user, optionally for an amount of time.
+        Arguments:
+            (Required)
+            user: The user to apply the role to. This can be provided as an argument of their ID, or as a mention.
+            role: The role to apply to the user. This can be provided as an argument of its ID, or as a mention.
+
+            (Optional)
+            time: How long to apply this role for in hours.
+        Examples:
+            c.role.apply @Oken @bapped time=12  # Apply a role for 12 hours.
+            c.role.apply user=411365470109958155 role=772218505306439680  # Apply a role permanently
+            c.role.apply @Crunc role=804463840539574302
+        """
         if not await self.bot.has_perm(ctx, admin=True): return False
         message = ctx.message
         content = message.content
@@ -262,6 +276,12 @@ class RoleControl(commands.Cog, name="roles"):
                 await ctx.send(f"Cannot find role with id {role_id}")
                 return
 
+        # Check if there's already an entry in the database for this user/role
+        self.bot.cursor.execute(
+            f"SELECT rowid, * FROM temp_role WHERE"
+            f" user_id={user.id} AND server={ctx.guild.id} AND role_ids={roles.id}")
+        result = self.bot.cursor.fetchone()
+
         # Apply the role to the user
         try:
             await user.add_roles(roles)
@@ -275,15 +295,23 @@ class RoleControl(commands.Cog, name="roles"):
             traceback.print_exc()
             return
 
-        # TODO: Limit to 1 month/1 second
-        # If the time, do
         if time != 0:
+            time = max(min(336, time), 0.0003)  # Limit to 1 month or 1 second.
             end_time = self.bot.hours_from_now(time)
-            self.bot.cursor.execute(f"INSERT INTO temp_role VALUES({ctx.guild.id}, {user.id}, {end_time}, {roles.id})")
-            self.bot.cursor.execute("commit")
-            await ctx.send(f"Role added for {time} hours!")
+            time_string = self.bot.time_to_string(hours=time)
+
+            if result:  # Update existing entry.
+                self.bot.cursor.execute(f"UPDATE temp_role SET end_time={end_time} WHERE rowid={result[0]}")
+            else:  # Create entry.
+                self.bot.cursor.execute(f"INSERT INTO temp_role VALUES({ctx.guild.id}, {user.id}, {end_time}, {roles.id})")
+
+            await ctx.send(f"{roles.name} added to {user.name} for {time_string}!")
         else:
+            if result:  # Remove entries for the temp role so it doesn't get removed later.
+                self.bot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={result[0]}")
             await ctx.send(f"Role added!")
+
+        self.bot.cursor.execute("commit")
 
     @commands.command(name=f"{prefix}.remove")
     async def remove_role(self, ctx):

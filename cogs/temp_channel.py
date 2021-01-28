@@ -128,6 +128,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         await ctx.send(response_message)
         await created_channel.send("first")
 
+    # TODO: Find a way to deal with rooms getting deleted causing no more room ability.
     @commands.command(name=f"{prefix}.close")
     async def room_close(self, ctx):
         """
