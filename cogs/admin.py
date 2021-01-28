@@ -92,6 +92,19 @@ class Admin(commands.Cog, name="admin"):
 
         await target.send(content)
 
+    @commands.command(name="dm.help")
+    async def dm_help(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False, dm=True): return
+        docstring = """
+        DM a user. An excess of spaces should be placed between the user's ID and the content to send to them.
+        Arguments:
+            user: The user to send the ID to.
+            content: What to send to them.
+        Example:
+            c.dm user=630930243464462346      you're really cool
+        """
+        await ctx.send(docstring)
+
     @commands.command(name="ignore")
     async def ignore_channel(self, ctx):
         pass
