@@ -275,6 +275,7 @@ class RoleControl(commands.Cog, name="roles"):
             traceback.print_exc()
             return
 
+        # TODO: Limit to 1 month/1 second
         # If the time, do
         if time != 0:
             end_time = self.bot.hours_from_now(time)

@@ -70,6 +70,7 @@ class MyBot(commands.Bot):
         # Any tabulated data should be stored in this database, under their respective table
         self.db = sqlite3.connect("bot.db")
         self.cursor = self.db.cursor()
+        self.db_init()
 
     def default_embed(self, title):
         """
@@ -91,7 +92,7 @@ class MyBot(commands.Bot):
         cursor.execute("begin")
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS settings ("
-            "server INTEGER"  # The server this setting is specific to.
+            "server INTEGER,"  # The server this setting is specific to.
             "key STRING,"  # The name of the setting.
             "value STRING"  # The value this setting stores.
             ")")
@@ -175,7 +176,7 @@ class MyBot(commands.Bot):
         if not dm and channel.type is discord.ChannelType.private:
             return False
 
-        if not ignored_rooms and self.is_room_ignored(b_ctx):
+        if not ignored_rooms and self.is_room_ignored(input):
             return False
 
         # If all falsifying checks fail, user has perms.
@@ -407,13 +408,14 @@ async def timed_loop(aBot):
 
         # ======= Temp role =======
         try:
-            aBot.cursor.execute("SELECT * FROM temp_role ORDER BY end_time ASC")
+            aBot.cursor.execute("SELECT rowid, * FROM temp_role ORDER BY end_time ASC")
             targets = aBot.cursor.fetchall()
             for target in targets:
-                if time_now > target[2]:
-                    server = aBot.get_guild(target[0])
-                    member = server.get_member(target[1])
-                    role = discord.Object(target[3])
+                if time_now > target[3]:
+                    rowid = target[0]
+                    server = aBot.get_guild(target[1])
+                    member = server.get_member(target[2])
+                    role = discord.Object(target[4])
 
                     if member is None:
                         # Member could not be found
@@ -426,6 +428,7 @@ async def timed_loop(aBot):
                     except discord.errors.HTTPException:
                         # Failed.
                         pass
+                    aBot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={rowid}")
                 else:
                     break
 
