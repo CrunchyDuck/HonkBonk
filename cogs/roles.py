@@ -311,7 +311,8 @@ class RoleControl(commands.Cog, name="roles"):
                 self.bot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={result[0]}")
             await ctx.send(f"Role added!")
 
-        self.bot.cursor.execute("commit")
+        try: self.bot.cursor.execute("commit")
+        except: pass
 
     @commands.command(name=f"{prefix}.remove")
     async def remove_role(self, ctx):
@@ -335,7 +336,7 @@ class RoleControl(commands.Cog, name="roles"):
         if user:
             user = message.mentions[0]
         else:
-            user_id = int(self.bot.get_variable(content, "user", type="int", default=0))
+            user_id = int(self.bot.get_variable(message.content, "user", type="int", default=0))
             if not user_id:
                 await ctx.send("Mention a user or provide their id as user=id")
                 return
@@ -348,7 +349,7 @@ class RoleControl(commands.Cog, name="roles"):
         if roles:
             roles = roles[0]
         else:
-            role_id = int(self.bot.get_variable(content, "role", type="int", default=0))
+            role_id = int(self.bot.get_variable(message.content, "role", type="int", default=0))
             if not role_id:
                 await ctx.send("Mention a role or provide its id as role=id")
                 return
