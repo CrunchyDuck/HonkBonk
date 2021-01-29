@@ -92,23 +92,10 @@ class Admin(commands.Cog, name="admin"):
 
         await target.send(content)
 
-    @commands.command(name="dm.help")
-    async def dm_help(self, ctx):
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False, dm=True): return
-        docstring = """
-        DM a user. An excess of spaces should be placed between the user's ID and the content to send to them.
-        Arguments:
-            user: The user to send the ID to.
-            content: What to send to them.
-        Example:
-            c.dm user=630930243464462346      you're really cool
-        """
-        await ctx.send(docstring)
-
     @commands.command(name="ignore")
     async def ignore_id(self, ctx):
         """
-        Ignores a channel, category, or user.
+        ```Ignores a channel, category, or user.
         You can mention a category by putting its id into this structure:
         <#id_of_category>
 
@@ -124,19 +111,48 @@ class Admin(commands.Cog, name="admin"):
             c.ignore  # Ignores this channel
             c.ignore @Pidge  # Ignores a user
             c.ignore #general #nsfw #announcements # Ignores multiple channels.
-            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.
+            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.```
         """
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=True): return
+        server = ctx.guild.id
         message = ctx.message
         id = int(self.bot.get_variable(ctx.message.content, "id", type="int", default=0))
+        stop = self.bot.get_variable(ctx.message.content, "stop", type="keyword", default=False)
 
         members = message.mentions
         channels = message.channel_mentions
 
+        # Get IDs from provided values.
+        id_list = []
+        if id:
+            id_list.append(id)
+        if members:
+            id_list += [x.id for x in members]
+        if channels:
+            id_list += [x.id for x in channels]
+
+        if not stop:
+            for id in id_list:
+                self.bot.cursor.execute(f"INSERT INTO settings VALUES(?,?,?)", (server, "ignore", id))
+            self.bot.cursor.execute("commit")
+            await ctx.send("Ignoring IDs.")
+        else:
+            for id in id_list:
+                self.bot.cursor.execute("DELETE FROM settings WHERE rowid IN("
+                                        "SELECT rowid FROM settings WHERE value=? AND key='ignore')", (id,))
+            await ctx.send("No longer ignoring IDs.")
+
+    @commands.command(name="ignore.list")
+    async def ignored_list(self, ctx):
+        # TODO: This.
+        pass
+
+
+
     @commands.command(name="ignore.help")
     async def ignore_help(self, ctx):
         docstring = """
-        Ignores a channel, category, or user.
+        ```Ignores a channel, category, or user.
         You can mention a category by putting its id into this structure:
         <#id_of_category>
 
@@ -153,9 +169,22 @@ class Admin(commands.Cog, name="admin"):
             c.ignore  # Ignores this channel
             c.ignore @Pidge  # Ignores a user
             c.ignore #general #nsfw #announcements # Ignores multiple channels.
-            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.
+            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.```
         """
         docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="dm.help")
+    async def dm_help(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False, dm=True): return
+        docstring = """
+            ```DM a user. An excess of spaces should be placed between the user's ID and the content to send to them.
+            Arguments:
+                user: The user to send the ID to.
+                content: What to send to them.
+            Example:
+                c.dm user=630930243464462346      you're really cool```
+            """
         await ctx.send(docstring)
 
 

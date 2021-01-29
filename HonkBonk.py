@@ -192,6 +192,15 @@ class MyBot(commands.Bot):
         else:
             return False
 
+    def is_user_ignored(self, ctx):
+        server = ctx.guild.id
+        user_id = ctx.author.id
+        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={user_id}", ("ignore",))
+        if self.cursor.fetchone():
+            return True
+        else:
+            return False
+
     def admin_override(self, ctx):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
         user = ctx.author
