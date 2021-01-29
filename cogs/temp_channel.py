@@ -262,6 +262,153 @@ class TempChannel(commands.Cog, name="temp_channel"):
         await ctx.send(f"{channel.mention} changed to temporary room owned by {owner.name}")
         await channel.send(f"Reopened channel under ownership of {owner.name}!")
 
+    @commands.command(name=f"{prefix}.settings")
+    async def configure_settings(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True): return
+        message = ctx.message
+        server = ctx.guild.id
+
+        settings = {}
+        fields = [["create category", "int"], ["archive category", "int"], ["default time", "int"],
+                  ["ignore channel", "int"], ["ignore category"]]
+        for field in fields:
+            key = field[0]
+            type = field[1]
+            val = self.bot.get_variable(message.content, key, type=type, default="0")
+            if val != "0":
+                settings[key] = val
+
+        for key, value in settings:
+            if value == "0":  # default value
+                continue
+            self.bot.cursor.execute("INSERT INTO settings VALUES(?, ?, ?)", (server, key, value))
+        self.bot.cursor.execute("commit")
+
+
+    @commands.command(name=f"{prefix}.help")
+    async def room_add_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```This module allows users to open rooms temporarily.
+            A temporary room is one that will automatically archive or close after its time is up.
+            A room is moved to the provided category when it is archived.
+            
+            c.room.open - Opens a temporary room
+            c.room.close - Closes a temporary room
+            c.room.time - Change or check the time on a room.
+            c.room.order - Orders the archive category.
+            c.room.add - Makes a channel a temporary room.
+            c.room.settings - nothing lol
+            ```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.open.help")
+    async def room_open_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Creates a temporary room.
+        Admins can mention a user to open a channel in their name.
+        
+        Arguments:
+            (Required)
+            name: Name of the room.
+            
+            (Optional)
+            nsfw: If the room should be flagged as nsfw. Default False
+            time: How long, in hours, the room should be open for. Default 24
+            topic: The channel's topic.
+        
+        Example:
+            c.room.open name="big boys only" time=1.12 topic="politics" nsfw
+            c.room.open name="how do i cook" time=12
+            c.room.open name="what should i make with eggs"```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.close.help")
+    async def room_close_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Move the room to the archive category. Must be called within the room.
+        Only the owner or an admin can close a room.
+        
+        Example:
+            c.room.close```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.close.help")
+    async def room_close_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Order the channels in the archive category for this server.
+        
+        Arguments:
+            date: Order channels by date
+            name: Order channels by name
+            descending: Order Z-A or newest-oldest
+        
+        Example:
+            c.room.order_archive date  # Order by oldens
+            c.room.order_archive name descending  # Order from Z-A```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.time.help")
+    async def room_time_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Changes how much time the room has left,
+        OR returns how much longer until the channel is automatically archived.
+        Must be called from within the channel.
+        Changing time can only be done by an admin or the owner.
+        
+        Arguments:
+            (Optional)
+            time: The new duration of the room.
+            
+        Example:
+            c.room.time  # Checks time remaining
+            c.room.time 1.2  # Sets time remaining.```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.add.help")
+    async def room_add_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Adds ANY channel as a temporary channel.
+        
+        Arguments:
+            (Optional)
+            owner: A mention of the new owner of the channel. Whoever invoked the command if omitted.
+            time: How long the channel should be open for. 24 hours if omitted.
+            #channel: A mention fo the channel to add. Current channel if omitted.
+            
+        Example:
+            c.room.add
+            c.room.add time=9.12
+            c.room.add @Oken #images```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.settings.help")
+    async def room_settings_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```Does nothing right now XD LMAO ROFL PRANKED```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
         Sorts the channels in a category alphabetically.

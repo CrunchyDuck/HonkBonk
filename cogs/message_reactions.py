@@ -361,11 +361,114 @@ class Reaction(commands.Cog, name="message_reactions"):
         id = values.group(1)
         value = values.group(2)
 
-        self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered={value} WHERE rowid={id}")
+        self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered={value} WHERE server={ctx.guild.id} AND rowid={id}")
         self.bot.cursor.execute("commit")
         self.refresh_database()
 
         await ctx.send("Changed triggered amount!")
+
+
+    @commands.command(name=f"{prefix}.chance.help")
+    async def chance_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Returns the percentage chance of a given reaction to "furry"
+        
+        Arguments:
+            val: The emoji to check for.
+            
+        Example:
+            c.react.chance val=":furry:"
+            c.react.chance val=":parrot:"```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.add.help")
+    async def add_reaction_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Add a word reaction to the database. Multiple reactions can be added to one word.
+        When adding emoji, they must be separated by one space.
+        Admins can mention a user to invoke this command as if they were that user.
+        
+        Arguments:
+            (Required)
+            react: The reaction to add to triggered messages
+            
+            (One or the other)
+            word: The word to apply this reaction to.
+            pattern: A RegEx pattern of strings to apply the reaction to.
+            
+        Examples:
+            c.react.add :mag_right: :mag: word="investigate"
+            c.react.add :hammer: pattern=`hot|gay`
+            c.react.add :rainbow_flag: pattern=`pidge` @Pidge  # Admin invoking command on behalf of another.```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.remove.help")
+    async def remove_reaction_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Remove a custom reaction. Admins can mention a user to remove their reactions.
+        
+        Arguments:
+            rowid: The ID of the reaction to remove
+            
+        Examples:
+            c.react.remove 10  # Removes reaction with ID of 10.
+            c.react.remove 9 @Pidge  # Removes a user's reaction.```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.list.help")
+    async def list_reaction_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Display the user's custom reactions in this server.
+        Admins can mention a user to check their reactions.
+        
+        Example:
+            c.react.list  # Display your reactions
+            c.react.list @Pidge  # Display someone else's.```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.triggered.help")
+    async def list_reaction_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Allows an admin to change the amount of times a reaction has been triggered.
+        
+        Arguments:
+            reaction_id: The custom reaction to change the values of
+            amount: What to set the triggered amount to.
+        
+        Example:
+            c.react.triggered 12 0```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.help")
+    async def reaction_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring="""
+        ```This module allows honkbonk to react to messages with emotes.
+        Will not react to messages with URLs in them. Will not react in ignored rooms.
+        Maximum reactions per person can be seen in c.react.list. Admins bypass this.
+        
+        c.react.chance - Get chances of specifically the built in "furry" reaction
+        c.react.add - Add a custom reaction!
+        c.react.remove - Remove a custom reaction!
+        c.react.list - Display your custom reactions!
+        c.react.triggered - Change how many times a reaction has been triggered. Admin thingy.```
+        """
+        await ctx.send(docstring)
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     

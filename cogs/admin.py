@@ -68,12 +68,6 @@ class Admin(commands.Cog, name="admin"):
         channel = ctx.message.channel_mentions[0]
         await channel.send(content)
 
-    @commands.command(name="bad")
-    async def make_bad(self, ctx):
-        """Give someone a "bad" role, which inhibits their interaction with the server."""
-        for m in ctx.message.mentions:
-            self.bot.banned_from_commands.append(m.id)
-
     @commands.command(name="dm")
     async def dm_user(self, ctx):
         """
@@ -151,6 +145,7 @@ class Admin(commands.Cog, name="admin"):
 
     @commands.command(name="ignore.help")
     async def ignore_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
         ```Ignores a channel, category, or user.
         You can mention a category by putting its id into this structure:
@@ -176,16 +171,71 @@ class Admin(commands.Cog, name="admin"):
 
     @commands.command(name="dm.help")
     async def dm_help(self, ctx):
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False, dm=True): return
+        if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
             ```DM a user. An excess of spaces should be placed between the user's ID and the content to send to them.
+            
             Arguments:
+                (Required)
                 user: The user to send the ID to.
-                content: What to send to them.
+                content: What to send to them. This should be spaced far from the root command, because it makes my job easier.
+            
             Example:
                 c.dm user=630930243464462346      you're really cool```
             """
+        docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
+
+    @commands.command(name="speak.help")
+    async def speak_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Make the bot say something in a channel. Works in the server it was called from.
+        Admin command.
+        
+        Arguments:
+            (Required)
+            channel_mention: A mention of the channel to send the message in.
+            content: What to say.
+            
+        Example:
+            c.speak #bots content="I have gained sapience."```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="timestamp.help")
+    async def timestamp_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Get the timestamp of a provided Discord Snowflake. This command works in DMs.
+
+        Example command:
+            c.timestamp 411365470109958155
+            
+        Example response:
+            2018-02-09 03:39:30 UTC```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="help")
+    async def core_help(self, ctx):
+        """The core help command."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+        help_string = "```Modules:\n" \
+        "c.role - Vanity roles and moderation controls.\n" \
+        "c.emoji - Adding and moderating emoji.\n" \
+        "c.react - Automatic reactions to messages.\n" \
+        "c.room - Temporary rooms.\n" \
+        "c.vc - underdeveloped VC commands.\n" \
+        "\n" \
+        "Core commands:\n" \
+        "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
+        "c.ignore - Setting honkbonk to ignore users/channels.\n" \
+        "c.speak - Makes HonkBonk say something, somewhere :).\n" \
+        "c.dm - Makes HonkBonk DM a user.```"
+        await ctx.send(help_string)
 
 
 def setup(bot):

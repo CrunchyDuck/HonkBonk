@@ -16,8 +16,8 @@ class RoleControl(commands.Cog, name="roles"):
         self.bot = bot
         self.init_db(bot.cursor)
 
-    # TODO: Change this to .vanity
-    @commands.command(name=f"{prefix}")
+    # TODO: Allow only special users to access this/people who already have vanity roles.
+    @commands.command(name=f"{prefix}.vanity")
     async def colour_role(self, ctx):
         """
         Create, or modify, a colour role.
@@ -316,14 +316,15 @@ class RoleControl(commands.Cog, name="roles"):
     @commands.command(name=f"{prefix}.remove")
     async def remove_role(self, ctx):
         """
-        Adds a role to a user, optionally for an amount of time.
+        Removes a role from a user.
+        Admin command.
         Arguments:
             (Required)
             user: The user to apply the role to. This can be provided as an argument of their ID, or as a mention.
             role: The role to apply to the user. This can be provided as an argument of its ID, or as a mention.
         Examples:
-              c.role.remove @pidge @straight
-              c.role.remove user=565879875647438851 role=771924151950114846
+            c.role.remove @pidge @straight
+            c.role.remove user=565879875647438851 role=771924151950114846
         """
         if not await self.bot.has_perm(ctx, admin=True): return False
         message = ctx.message
@@ -376,6 +377,112 @@ class RoleControl(commands.Cog, name="roles"):
         results = self.bot.cursor.fetchall()
 
         self.bot.cursor.executemany("DELETE FROM temp_role WHERE rowid=?", results)
+
+
+    @commands.command(name=f"{prefix}.apply.help")
+    async def apply_role_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Adds a role to a user, optionally for an amount of time.
+        Admin command.
+        
+        Arguments:
+            (Required)
+            user: The user to apply the role to. This can be provided as an argument of their ID, or as a mention.
+            role: The role to apply to the user. This can be provided as an argument of its ID, or as a mention.
+
+            (Optional)
+            time: How long to apply this role for in hours.
+        
+        Examples:
+            c.role.apply @Oken @bapped time=12  # Apply a role for 12 hours.
+            c.role.apply user=411365470109958155 role=772218505306439680  # Apply a role permanently
+            c.role.apply @Crunc role=804463840539574302```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.vanity.help")
+    async def role_vanity_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Create, or modify, a vanity role.
+        Admins can mention a user to invoke the command in their name.
+        
+        Arguments:
+            name: What to call the role.
+            color: A hex code to assign to the role.
+            mention: A keyword that determines if a role is mentionable. If creating, this will set it to true. When modifying, toggle.
+            
+        Example:
+            (Creation) c.role name="total biscuit" #C070C0 mention
+            (Update) c.role name="oops i made a typo"```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.remove.help")
+    async def remove_role_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Removes a role from a user.
+        Admin command.
+        
+        Arguments:
+            (Required)
+            user: The user to apply the role to. This can be provided as an argument of their ID, or as a mention.
+            role: The role to apply to the user. This can be provided as an argument of its ID, or as a mention.
+            
+        Examples:
+            c.role.remove @pidge @straight
+            c.role.remove user=565879875647438851 role=771924151950114846```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.delete.help")
+    async def delete_vanity_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```Deletes a vanity role. Only deletes the role of the person who called it.
+            Can be used by anyone with a vanity role, or permissions to use a vanity role.
+            
+            Example:
+                c.role.delete```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.info.help")
+    async def role_info_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Gets information about any provided role.
+        Displays the following information about roles:
+            Role name, role snowflake, date created, hex colour, mentionable
+        
+        Arguments:
+            role_mention: A mention of the role to get info from.
+            user_mention: A user to get vanity role information from.
+            
+        Example:
+            c.role.info @Oken
+            c.role.info @newcomers```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.help")
+    async def roles_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        help_string =\
+        "```This module provides vanity roles and moderation control.\n\n" \
+        "c.role.vanity - Vanity roles!\n" \
+        "c.role.delete - Deleting a vanity role.\n" \
+        "c.role.info - Provides information about a role.\n" \
+        "c.role.apply - Controls for adding roles to a user.\n" \
+        "c.role.remove - Removing a role from a user. Cleans up any bot ties to the role.```"
+        await ctx.send(help_string)
 
     def get_hex(self, string):
         """Finds the first instance of a hex value in a string."""

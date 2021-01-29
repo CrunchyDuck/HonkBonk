@@ -38,5 +38,44 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         return
 
 
+    @commands.command(name=f"{prefix}.help")
+    async def vc_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```c.vc.join - Join your channel
+        c.vc.leave - Leave currently joined channel```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.join.help")
+    async def join_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Join the VC channel you're in, or the mentioned channel
+        
+        Arguments:
+            cnl: The vc channel ID to join
+        
+        Examples:
+            c.vc.join
+            c.vc.join cnl=773744358934446080```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.leave.help")
+    async def leave_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```Leave the currently joined vc.
+
+            Example:
+                c.vc.leave```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+
 def setup(bot):
     bot.add_cog(VoiceChannels(bot))

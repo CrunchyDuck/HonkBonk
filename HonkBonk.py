@@ -512,6 +512,7 @@ def allgroups(matchobject):
 # IDEA: Quote database.
 # IDEA: Github integration
 
+# TODO: Allow .disable to stop a command running in a server.
 # TODO: Set up Doxygen html documentation.
 # TODO: Add server admins as viable "bot admins"
 # TODO: Make bot track all roles in color_role.py, so they can be readded if someone loses their roles (E.G Kicking)
