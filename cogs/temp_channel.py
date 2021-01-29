@@ -143,13 +143,13 @@ class TempChannel(commands.Cog, name="temp_channel"):
         channel = ctx.channel
 
         # Check if this channel is a temp channel
-        db_entry = self.db_temp_room(channel.id)
+        db_entry = self.bot.get_temp_room(room_id=channel.id)
         if not db_entry:
             await ctx.send("This channel doesn't seem to be a temporary channel.")
             return
 
         # Check if this person owns it, or is an admin.
-        if author not in self.bot.admins and author != db_entry[0]:
+        if author not in self.bot.admins and author != db_entry["user_id"]:
             await ctx.send("You don't own this temp channel. thot.")
             return
 
@@ -177,14 +177,14 @@ class TempChannel(commands.Cog, name="temp_channel"):
         user = ctx.author
 
         # Check if this channel is a temp channel
-        db_entry = self.db_temp_room(channel.id)
+        db_entry = self.bot.get_temp_room(room_id=channel.id)
         if not db_entry:
             await ctx.send("This channel doesn't seem to be a temporary channel.")
             return
 
         hours = float(self.bot.get_variable(ctx.message.content, type="float", default=0))
         if hours:
-            if (db_entry[0] == user.id or user.id in self.bot.admins):
+            if db_entry["user_id"] == user.id or user.id in self.bot.admins:
                 cur = self.bot.cursor
                 end_time = self.bot.hours_from_now(hours)
                 cur.execute(f"UPDATE temp_room SET end_time={end_time} WHERE room_id={channel.id}")
@@ -193,7 +193,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             else:
                 await ctx.send("you are not **permitted.**")
         else:
-            time_diff = db_entry[2] - time.mktime(datetime.datetime.now().timetuple())
+            time_diff = db_entry["end_time"] - time.mktime(datetime.datetime.now().timetuple())
             time_diff = round(time_diff / 60 / 60, 3)  # Convert it from seconds to hours.
             destruction_type = self.rc_destroy_type.get_value()
             await ctx.send(f"This room has {time_diff} hours until {destruction_type}.")
@@ -289,13 +289,6 @@ class TempChannel(commands.Cog, name="temp_channel"):
             if channel.position == i:
                 continue
             await channel.edit(position=i)
-
-    def db_temp_room(self, channel_id):
-        """Find an entry in the temp_room database from the room_id."""
-        # TODO: Reformat the return as a dictionary to make use clearer.
-        self.bot.cursor.execute("SELECT * FROM temp_room WHERE room_id=?", (channel_id,))
-        db_entry = self.bot.cursor.fetchone()
-        return db_entry
 
     def db_init(self):
         cursor = self.bot.cursor

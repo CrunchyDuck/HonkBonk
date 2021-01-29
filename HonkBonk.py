@@ -64,8 +64,6 @@ class MyBot(commands.Bot):
             337793807888285698,  # Oken
             630930243464462346,  # Pika
         ]
-        self.banned_from_commands = [  # Any users who have been banned from using these commands. Bad boys.
-        ]
         self.zws = "\u200b"  # An empty character, used when a field *requires* a value I don't want to give (normally embeds)
 
         # Any tabulated data should be stored in this database, under their respective table
@@ -195,6 +193,28 @@ class MyBot(commands.Bot):
             return True
         else:
             return False
+
+    def get_temp_room(self, ctx=None, room_id=0):
+        """
+        Fetches a temporary room if it exists, None if it does not.
+        Requires temp_channel cog.
+        Dictionary return formatted as:
+        {
+            "rowid": val, "user_id": val, "room_id": val, "end_time": val
+        }
+        """
+        # Get entries.
+        id = ctx.channel.id if ctx else room_id
+        self.cursor.execute(f"SELECT rowid, * FROM temp_room WHERE room_id={id}")
+
+        # Format dictionary return.
+        result = self.cursor.fetchone()  # There should only ever be one entry per room.
+        if not result:
+            return None
+
+        return_dict = {"rowid": result[0], "user_id": result[1], "room_id": result[2], "end_time": result[3]}
+        return return_dict
+
 
     def admin_override(self, ctx):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
