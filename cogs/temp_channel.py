@@ -285,9 +285,33 @@ class TempChannel(commands.Cog, name="temp_channel"):
             self.bot.cursor.execute("INSERT INTO settings VALUES(?, ?, ?)", (server, key, value))
         self.bot.cursor.execute("commit")
 
+    @commands.command(name=f"{prefix}.owner")
+    async def room_owner(self, ctx):
+        """
+        Displays the owner of the room.
+
+        Arguments:
+            (Optional)
+            #room: A mention of the room, assumes current room if not provided.
+
+        Example:
+            c.room.owner
+            c.room.owner #nyanyacatboys
+        """
+        if not await self.bot.has_perm(ctx): return
+        channel = ctx.message.channel_mentions[0] if ctx.message.channel_mentions else ctx.channel
+        result = self.bot.get_temp_room(room_id=channel.id)
+
+        if not result:
+            await ctx.send(f"{channel.mention} isn't owned by anyone.")
+            return
+
+        user = self.bot.get_user(result["user_id"])
+        await ctx.send(f"{channel.mention} is owned by {user.name}")
+
 
     @commands.command(name=f"{prefix}.help")
-    async def room_add_help(self, ctx):
+    async def room_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
             ```This module allows users to open rooms temporarily.
@@ -297,6 +321,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
             c.room.open - Opens a temporary room
             c.room.close - Closes a temporary room
             c.room.time - Change or check the time on a room.
+            c.room.owner - Who owns a temp room?
+            
             c.room.order - Orders the archive category.
             c.room.add - Makes a channel a temporary room.
             c.room.settings - nothing lol
@@ -342,8 +368,25 @@ class TempChannel(commands.Cog, name="temp_channel"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
-    @commands.command(name=f"{prefix}.close.help")
-    async def room_close_help(self, ctx):
+    @commands.command(name=f"{prefix}.owner.help")
+    async def room_owner_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Displays the owner of the room.
+
+        Arguments:
+            (Optional)
+            #room: A mention of the room, assumes current room if not provided.
+
+        Example:
+            c.room.owner
+            c.room.owner #nyanyacatboys```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.order.help")
+    async def room_order_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
         ```Order the channels in the archive category for this server.
