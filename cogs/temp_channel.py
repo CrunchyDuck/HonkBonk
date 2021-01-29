@@ -79,8 +79,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
         if not await self.bot.has_perm(ctx): return
 
         message = ctx.message
-        author = self.bot.admin_override(ctx).id
-        self.bot.cursor.execute("SELECT * FROM temp_room WHERE id=?", (author,))
+        author = self.bot.admin_override(ctx)
+        self.bot.cursor.execute("SELECT * FROM temp_room WHERE id=?", (author.id,))
         if self.bot.cursor.fetchone():  # If someone has a room open, don't allow them to make a new one.
             await ctx.send(f"You already have a room open! Use c.{self.prefix}.close to close it.")
             return
@@ -102,13 +102,14 @@ class TempChannel(commands.Cog, name="temp_channel"):
         #    pass
 
         try:
+            overwrites = self.create_temp_room_overrides(author)
             created_channel = await ctx.guild.create_text_channel(name=name, category=ctx.guild.get_channel(self.create_category),
-                sync_permission=True, nsfw=nsfw, topic=topic)
+                sync_permission=True, nsfw=nsfw, topic=topic, overwrites=overwrites)
         except:
             await ctx.send("Couldn't create room! Most likely, I've hit the room cap and CrunchyDuck didn't find a solution before this triggered.\ntell he.")
             return
 
-        self.bot.cursor.execute("INSERT INTO temp_room VALUES(?, ?, ?)", (author, created_channel.id, end_time))
+        self.bot.cursor.execute("INSERT INTO temp_room VALUES(?, ?, ?)", (author.id, created_channel.id, end_time))
         self.bot.cursor.execute("commit")
         
         # Decide what response to give.
@@ -256,7 +257,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
             await ctx.send(f"This room is already a temp room.")
             return
 
-        await channel.edit(category=ctx.guild.get_channel(self.create_category), sync_permissions=True)
+        overwrites = self.create_temp_room_overrides(owner)
+        await channel.edit(category=ctx.guild.get_channel(self.create_category), sync_permissions=True, overwrites=overwrites)
         self.bot.cursor.execute("INSERT INTO temp_room VALUES(?, ?, ?)", (owner.id, channel.id, end_time))
         self.bot.cursor.execute("commit")
 
@@ -336,6 +338,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
         ```Creates a temporary room.
+        Room owners get the following permissions:
+            Manage Messages, Send TTS Messages, Manage Channel
         Admins can mention a user to open a channel in their name.
         
         Arguments:
@@ -452,6 +456,20 @@ class TempChannel(commands.Cog, name="temp_channel"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
+
+    def create_temp_room_overrides(self, member=None, role=None):
+        """
+        Gives the owner of a room pseudo-admin powers within their own room while it is open.
+        This returns a dictionary of the powers they will have.
+        """
+
+        perms = {
+            "manage_messages": True,
+            "send_tts_messages": True,
+            "manage_channels": True
+        }
+        overwrite = discord.PermissionOverwrite(**perms)
+        return {member: overwrite}
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
