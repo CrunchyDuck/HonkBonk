@@ -189,14 +189,15 @@ class TempChannel(commands.Cog, name="temp_channel"):
                 end_time = self.bot.hours_from_now(hours)
                 cur.execute(f"UPDATE temp_room SET end_time={end_time} WHERE room_id={channel.id}")
                 cur.execute("commit")
-                await ctx.send(f"The room's lifespan has been changed to {hours} hours!")
+                time_string = self.bot.time_to_string(hours=hours)
+                await ctx.send(f"The room's lifespan has been changed to {time_string}!")
             else:
                 await ctx.send("you are not **permitted.**")
         else:
             time_diff = db_entry["end_time"] - time.mktime(datetime.datetime.now().timetuple())
-            time_diff = round(time_diff / 60 / 60, 3)  # Convert it from seconds to hours.
+            time_string = self.bot.time_to_string(seconds=time_diff)
             destruction_type = self.rc_destroy_type.get_value()
-            await ctx.send(f"This room has {time_diff} hours until {destruction_type}.")
+            await ctx.send(f"This room has {time_string} until {destruction_type}.")
 
     @commands.command(name=f"{prefix}.order")
     async def order_archive(self, ctx):
