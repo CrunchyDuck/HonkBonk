@@ -49,6 +49,7 @@ class MyBot(commands.Bot):
         "float": r"(\d+(?:\.\d+)?)",
         "int": r"(\d+)"
     }
+    r_newline_whitespace = r"(?<=\n)([ ]+)"  # The whitespace after a new line. Basically, removes indentation.
 
     def __init__(self, bot_prefix, intents=None):
         super().__init__(bot_prefix, intents=intents)  # This just runs the original commands.Bot __init__ function.
@@ -292,6 +293,14 @@ class MyBot(commands.Bot):
             timestring = timestring[:-2]  # Crop the last two characters
 
         return timestring
+
+    @staticmethod
+    def remove_indentation(string):
+        indentation_amount = re.search(MyBot.r_newline_whitespace, string)
+        if not indentation_amount:
+            return string
+        indentation_amount = indentation_amount.group(1)
+        return re.sub(indentation_amount, "", string)
 
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.

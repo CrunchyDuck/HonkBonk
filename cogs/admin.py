@@ -106,8 +106,58 @@ class Admin(commands.Cog, name="admin"):
         await ctx.send(docstring)
 
     @commands.command(name="ignore")
-    async def ignore_channel(self, ctx):
-        pass
+    async def ignore_id(self, ctx):
+        """
+        Ignores a channel, category, or user.
+        You can mention a category by putting its id into this structure:
+        <#id_of_category>
+
+        Arguments:
+            (Required) - Requires at least one
+            id: The ID to add to the list. Only 1 ID can be provided this way.
+            member: A mention of the member to ignore. Can be multiple.
+            channel: A mention of the text, voice or category channel to ignore.
+
+            (Optional)
+            stop: Stops ignoring the given IDs.
+        Example:
+            c.ignore  # Ignores this channel
+            c.ignore @Pidge  # Ignores a user
+            c.ignore #general #nsfw #announcements # Ignores multiple channels.
+            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.
+        """
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+        message = ctx.message
+        id = int(self.bot.get_variable(ctx.message.content, "id", type="int", default=0))
+
+        members = message.mentions
+        channels = message.channel_mentions
+
+    @commands.command(name="ignore.help")
+    async def ignore_help(self, ctx):
+        docstring = """
+        Ignores a channel, category, or user.
+        You can mention a category by putting its id into this structure:
+        <#id_of_category>
+
+        Arguments:
+            (Required) - Requires at least one
+            id: The ID to add to the list. Only 1 ID can be provided this way.
+            member: A mention of the member to ignore. Can be multiple.
+            channel: A mention of the text, voice or category channel to ignore.
+
+            (Optional)
+            stop: Stops ignoring the given IDs.
+        
+        Example:
+            c.ignore  # Ignores this channel
+            c.ignore @Pidge  # Ignores a user
+            c.ignore #general #nsfw #announcements # Ignores multiple channels.
+            c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
 
 def setup(bot):
     bot.add_cog(Admin(bot))
