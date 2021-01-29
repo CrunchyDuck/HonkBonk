@@ -103,7 +103,7 @@ class Admin(commands.Cog, name="admin"):
             (Required) - Requires at least one
             id: The ID to add to the list. Only 1 ID can be provided this way.
             member: A mention of the member to ignore. Can be multiple.
-            channel: A mention of the text, voice or category channel to ignore.
+            channel: A mention of the text, voice or category channel to ignore. Can be multiple.
 
             (Optional)
             stop: Stops ignoring the given IDs.
@@ -160,7 +160,7 @@ class Admin(commands.Cog, name="admin"):
             (Required) - Requires at least one
             id: The ID to add to the list. Only 1 ID can be provided this way.
             member: A mention of the member to ignore. Can be multiple.
-            channel: A mention of the text, voice or category channel to ignore.
+            channel: A mention of the text, voice or category channel to ignore. Can be multiple.
 
             (Optional)
             stop: Stops ignoring the given IDs.

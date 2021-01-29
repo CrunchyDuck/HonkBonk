@@ -166,12 +166,7 @@ class MyBot(commands.Bot):
         if ignore_bot and is_bot:
             return False
 
-        if not banned_users and u_id in self.banned_from_commands:
-            if message_on_fail:
-                try:
-                    await channel.send("Restricted users cannot use this command.")
-                except:
-                    pass
+        if not banned_users and self.is_user_ignored(input):
             return False
 
         if not dm and channel.type is discord.ChannelType.private:

@@ -100,7 +100,7 @@ class Reaction(commands.Cog, name="message_reactions"):
     async def on_message(self, message):
         if not await self.bot.has_perm(message, message_on_fail=False): return
         self.sleep_counter -= 1
-        server = message.guild.id
+        server = message.guild.id if message.guild else 0
         msg = message.content.lower()
 
         # Ignore messages with links.
