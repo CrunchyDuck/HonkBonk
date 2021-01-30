@@ -125,20 +125,19 @@ class Admin(commands.Cog, name="admin"):
         if channels:
             id_list += [x.id for x in channels]
 
-        # Make sure this ID doesn't already have an entry.
-        for id in id_list:
-            self.bot.cursor.execute(f"SELECT * FROM settings WHERE value={id} AND key='ignore'")
-            if self.bot.cursor.fetchone():
-                id_list.remove(id)
-
         if not stop:
+            # Make sure this ID doesn't already have an entry.
+            for id in id_list:
+                self.bot.cursor.execute(f"SELECT * FROM settings WHERE value={id} AND key='ignore'")
+                if self.bot.cursor.fetchone():
+                    id_list.remove(id)
+
             for id in id_list:
                 self.bot.cursor.execute(f"INSERT INTO settings VALUES(?,?,?)", (server, "ignore", id))
             await ctx.send("Ignoring IDs.")
         else:
             for id in id_list:
-                self.bot.cursor.execute("DELETE FROM settings WHERE rowid IN("
-                                        "SELECT rowid FROM settings WHERE value=? AND key='ignore')", (id,))
+                self.bot.cursor.execute("DELETE FROM settings WHERE server=? AND key=? AND value=?", (server, "ignore", id))
             await ctx.send("No longer ignoring IDs.")
 
         try:
@@ -303,9 +302,9 @@ class Admin(commands.Cog, name="admin"):
         "Core commands:\n" \
         "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
         "c.speak - Makes HonkBonk say something, somewhere :).\n" \
-        "c.dm - Makes HonkBonk DM a user." \
+        "c.dm - Makes HonkBonk DM a user.\n" \
         "c.ignore - Setting honkbonk to ignore users/channels.\n" \
-        "c.ignore.list - A list of ignored channels and users." \
+        "c.ignore.list - A list of ignored channels and users.\n" \
         "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
 
