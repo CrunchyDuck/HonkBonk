@@ -125,10 +125,15 @@ class Admin(commands.Cog, name="admin"):
         if channels:
             id_list += [x.id for x in channels]
 
+        # Make sure this ID doesn't already have an entry.
+        for id in id_list:
+            self.bot.cursor.execute(f"SELECT * FROM settings WHERE value={id} AND key='ignore'")
+            if self.bot.cursor.fetchone():
+                id_list.remove(id)
+
         if not stop:
             for id in id_list:
                 self.bot.cursor.execute(f"INSERT INTO settings VALUES(?,?,?)", (server, "ignore", id))
-            self.bot.cursor.execute("commit")
             await ctx.send("Ignoring IDs.")
         else:
             for id in id_list:
@@ -136,11 +141,62 @@ class Admin(commands.Cog, name="admin"):
                                         "SELECT rowid FROM settings WHERE value=? AND key='ignore')", (id,))
             await ctx.send("No longer ignoring IDs.")
 
+        try:
+            self.bot.cursor.execute("commit")
+        except:
+            pass
+
     @commands.command(name="ignore.list")
     async def ignored_list(self, ctx):
-        # TODO: This.
-        pass
+        if not await self.bot.has_perm(ctx, message_on_fail=False): return
+        server_id = ctx.guild.id
+        self.bot.cursor.execute(f"SELECT * FROM settings WHERE server={server_id} AND key='ignore'")
+        ignored_ids = self.bot.cursor.fetchall()
+        users = []
+        categories = []
+        channels = []
 
+        # Categorize the IDs into their types.
+        for id in ignored_ids:
+            snowflake = id[2]
+            result = self.bot.get_channel(snowflake)
+            if not result:
+                result = self.bot.get_user(snowflake)
+                if isinstance(result, discord.User):
+                    users.append(result)
+                continue
+
+            if isinstance(result, discord.CategoryChannel):
+                categories.append(result)
+                continue
+            elif isinstance(result, discord.TextChannel) or isinstance(result, discord.VoiceChannel):
+                channels.append(result)
+                continue
+
+        users = ", ".join([x.name for x in users])
+        categories = ", ".join([x.mention for x in categories])
+        channels = ", ".join([x.mention for x in channels])
+
+        message = f"Categories:\n{categories}\nChannels:\n{channels}\nUsers:\n{users}"
+        await ctx.send(message)
+
+    @commands.command(name="ignore.none")
+    async def ignore_none(self, ctx):
+        """Stops ignoring all channels and users."""
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+
+        self.bot.cursor.execute(
+            f"DELETE FROM settings WHERE rowid IN ("
+            f"SELECT rowid FROM settings WHERE server={ctx.guild.id} AND key='ignore')")
+        self.bot.cursor.execute("commit")
+
+        await ctx.send("No longer ignoring anything in this server!")
+
+    @commands.command(name="ignore.all")
+    async def ignore_all(self, ctx):
+        """Ignore all rooms and users in this server."""
+        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+        # TODO: This.
 
 
     @commands.command(name="ignore.help")
@@ -166,6 +222,20 @@ class Admin(commands.Cog, name="admin"):
             c.ignore #general #nsfw #announcements # Ignores multiple channels.
             c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.```
         """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="ignore.none.help")
+    async def ignore_none_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """```Removes all users and channels from the ignore list.```"""
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="ignore.list.help")
+    async def ignore_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """```Displays a list of the ignored channels and users.```"""
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
@@ -232,9 +302,11 @@ class Admin(commands.Cog, name="admin"):
         "\n" \
         "Core commands:\n" \
         "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
-        "c.ignore - Setting honkbonk to ignore users/channels.\n" \
         "c.speak - Makes HonkBonk say something, somewhere :).\n" \
-        "c.dm - Makes HonkBonk DM a user.```"
+        "c.dm - Makes HonkBonk DM a user." \
+        "c.ignore - Setting honkbonk to ignore users/channels.\n" \
+        "c.ignore.list - A list of ignored channels and users." \
+        "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
 
 
