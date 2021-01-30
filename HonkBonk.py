@@ -151,6 +151,10 @@ class MyBot(commands.Bot):
             raise AttributeError(f"MyBot.has_perm was provided with incorrect type {type(input)} for input.")
 
         # Checks
+        # An admin should only be stopped from a command if the room is ignored.
+        if not ignored_rooms and self.is_channel_ignored(input):
+            return False
+
         if u_id in self.admins:  # Admins can always run commands.
             return True
         elif admin:  # If the admin check is on, this user cannot run this command.
@@ -170,16 +174,25 @@ class MyBot(commands.Bot):
         if not dm and channel.type is discord.ChannelType.private:
             return False
 
-        if not ignored_rooms and self.is_room_ignored(input):
-            return False
-
         # If all falsifying checks fail, user has perms.
         return True
 
-    def is_room_ignored(self, ctx):
-        server = ctx.guild.id
-        room_id = ctx.channel.id
-        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={room_id}", ("ignore",))
+    def is_channel_ignored(self, ctx=None, server=0, channel_id=0):
+        """Checks if a channel or category is ignored."""
+        if ctx:
+            server = ctx.guild.id
+            channel = ctx.channel
+            cat_id = channel.category_id
+            channel_id = channel.id
+
+            # Check category if CTX object
+            if cat_id:
+                self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={cat_id}", ("ignore",))
+                if self.cursor.fetchone():
+                    return True
+
+        # Check ID of channel.
+        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={channel_id}", ("ignore",))
         if self.cursor.fetchone():
             return True
         else:

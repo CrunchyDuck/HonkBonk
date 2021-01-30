@@ -107,7 +107,7 @@ class Admin(commands.Cog, name="admin"):
             c.ignore #general #nsfw #announcements # Ignores multiple channels.
             c.ignore id=704361803953733694 stop  # Stops ignoring an ID, such as a category, or a channel.```
         """
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=True): return
+        if not await self.bot.has_perm(ctx, admin=True, ignored_rooms=True, message_on_fail=True): return
         server = ctx.guild.id
         message = ctx.message
         id = int(self.bot.get_variable(ctx.message.content, "id", type="int", default=0))

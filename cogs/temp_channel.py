@@ -137,7 +137,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         Example:
             c.room.close
         """
-        if not await self.bot.has_perm(ctx): return
+        if not await self.bot.has_perm(ctx, ignored_rooms=True): return
 
         message = ctx.message
         author = message.author.id
@@ -172,8 +172,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             c.room.time
             c.room.time 1.2
         """
-        # TODO: Allow for infinite time with the value 0.
-        if not await self.bot.has_perm(ctx): return
+        if not await self.bot.has_perm(ctx, ignored_rooms=True): return
         channel = ctx.channel
         user = ctx.author
 
@@ -243,7 +242,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             c.room.add time=9.12
             c.room.add @Oken #images
         """
-        if not await self.bot.has_perm(ctx, admin=True): return
+        if not await self.bot.has_perm(ctx, ignored_rooms=True, admin=True): return
         message = ctx.message
 
         owner = message.mentions[0] if message.mentions else ctx.author
@@ -319,6 +318,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             ```This module allows users to open rooms temporarily.
             A temporary room is one that will automatically archive or close after its time is up.
             A room is moved to the provided category when it is archived.
+            These commands will work even if the temporary room is ignored.
             
             c.room.open - Opens a temporary room
             c.room.close - Closes a temporary room
