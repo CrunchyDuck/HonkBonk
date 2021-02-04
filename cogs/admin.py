@@ -232,7 +232,7 @@ class Admin(commands.Cog, name="admin"):
         await ctx.send(docstring)
 
     @commands.command(name="ignore.list.help")
-    async def ignore_help(self, ctx):
+    async def ignore_list_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """```Displays a list of the ignored channels and users.```"""
         docstring = self.bot.remove_indentation(docstring)

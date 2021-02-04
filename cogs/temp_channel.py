@@ -80,9 +80,12 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
         message = ctx.message
         author = self.bot.admin_override(ctx)
-        self.bot.cursor.execute("SELECT * FROM temp_room WHERE id=?", (author.id,))
-        if self.bot.cursor.fetchone():  # If someone has a room open, don't allow them to make a new one.
-            await ctx.send(f"You already have a room open! Use c.{self.prefix}.close to close it.")
+        archive_cat = ctx.guild.get_channel(self.create_category)
+
+        # Does user already have a channel open?
+        open_rooms = self.user_rooms_open(owner.id)
+        if len(open_rooms) > 0 and ctx.author.id not in self.bot.admins:
+            await ctx.send(f"You already have a room open! Use c.{self.prefix}.close in the room to close it.")
             return
         
         name = self.bot.get_variable(message.content, "name", type="str")
@@ -102,7 +105,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
         #    pass
 
         try:
-            overwrites = self.create_temp_room_overrides(author)
+            cat_perms = archive_cat.overwrites
+            overwrites = {**self.create_temp_room_overrides(owner), **cat_perms}  # Merge dictionaries.
             created_channel = await ctx.guild.create_text_channel(name=name, category=ctx.guild.get_channel(self.create_category),
                 sync_permission=True, nsfw=nsfw, topic=topic, overwrites=overwrites)
         except:
@@ -230,34 +234,52 @@ class TempChannel(commands.Cog, name="temp_channel"):
             else:
                 return
 
-    @commands.command(name=f"{prefix}.add")
-    async def add_temporary_room(self, ctx):
+    @commands.command(name=f"{prefix}.reopen")
+    async def reopen_room(self, ctx):
         """
-        Adds ANY channel as a temporary channel.
+        ```Reopens a channel in the archive category. Admins may reopen any room.
+
         Arguments:
-            owner: A mention of the new owner of the channel. Whoever invoked the command if omitted
-            time: How long the channel should be open for
-            channel: The channel to add as temporary.
+            (Optional)
+            owner: A mention of the new owner of the channel. Whoever invoked the command if omitted.
+            time: How long the channel should be open for. 24 hours if omitted.
+            #channel: A mention of the channel to add. Current channel if omitted.
+
         Example:
-            c.room.add time=9.12
-            c.room.add @Oken #images
+            c.room.reopen
+            c.room.reopen time=9.12
+            c.room.reopen @Oken #images```
         """
-        if not await self.bot.has_perm(ctx, ignored_rooms=True, admin=True): return
+        if not await self.bot.has_perm(ctx, ignored_rooms=True): return
         message = ctx.message
 
-        owner = message.mentions[0] if message.mentions else ctx.author
+        owner = self.bot.admin_override(ctx)  # Allow an admin to define other users.
         channel = message.channel_mentions[0] if message.channel_mentions else ctx.channel
         duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
+        archive_cat = ctx.guild.get_channel(self.create_category)
 
         end_time = self.bot.hours_from_now(duration)
 
+        # Is channel already temp?
         self.bot.cursor.execute("SELECT * FROM temp_room WHERE room_id=?", (channel.id,))
         if self.bot.cursor.fetchone():
             await ctx.send(f"This room is already a temp room.")
             return
 
-        overwrites = self.create_temp_room_overrides(owner)
-        await channel.edit(category=ctx.guild.get_channel(self.create_category), sync_permissions=True, overwrites=overwrites)
+        # Is channel under the archive category?
+        if ctx.author not in self.bot.admins and channel.category.id != self.archive_category:
+            await ctx.send("Channel must under the archived rooms category.")
+            return
+
+        # Does user already have a channel open?
+        open_rooms = self.user_rooms_open(owner.id)
+        if len(open_rooms) > 0 and ctx.author.id not in self.bot.admins:
+            await ctx.send(f"{owner.name} already has a channel open!")
+            return
+
+        cat_perms = archive_cat.overwrites
+        overwrites = {**self.create_temp_room_overrides(owner), **cat_perms}  # Merge dictionaries.
+        await channel.edit(category=archive_cat, sync_permissions=True, overwrites=overwrites)
         self.bot.cursor.execute("INSERT INTO temp_room VALUES(?, ?, ?)", (owner.id, channel.id, end_time))
         self.bot.cursor.execute("commit")
 
@@ -427,22 +449,22 @@ class TempChannel(commands.Cog, name="temp_channel"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
-    @commands.command(name=f"{prefix}.add.help")
-    async def room_add_help(self, ctx):
+    @commands.command(name=f"{prefix}.reopen.help")
+    async def reopen_room_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
-        ```Adds ANY channel as a temporary channel.
+        ```Reopens a channel in the archive category. Admins may reopen any room.
         
         Arguments:
             (Optional)
-            owner: A mention of the new owner of the channel. Whoever invoked the command if omitted.
+            #channel: A mention of the channel to add. Current channel if omitted.
             time: How long the channel should be open for. 24 hours if omitted.
-            #channel: A mention fo the channel to add. Current channel if omitted.
+            @user: Admins can mention a user to invoke on their behalf.
             
         Example:
-            c.room.add
-            c.room.add time=9.12
-            c.room.add @Oken #images```
+            c.room.reopen
+            c.room.reopen time=9.12
+            c.room.reopen @Oken #images```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
@@ -470,6 +492,14 @@ class TempChannel(commands.Cog, name="temp_channel"):
         }
         overwrite = discord.PermissionOverwrite(**perms)
         return {member: overwrite}
+
+    def user_rooms_open(self, user_id):
+        cur = self.bot.cursor
+        cur.execute(f"SELECT room_id FROM temp_room WHERE id={user_id}")
+        results = cur.fetchall()
+        # I love list comprehension
+        ids = [x[0] for x in results]
+        return [self.bot.get_channel(x) for x in ids]
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
