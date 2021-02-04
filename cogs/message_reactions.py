@@ -117,10 +117,10 @@ class Reaction(commands.Cog, name="message_reactions"):
                             await self.react_with_pattern(message, reaction_to_add)
                             self.bot.cursor.execute(f"UPDATE emoji_reactions SET triggered=triggered + 1 WHERE rowid={rowid}")
                             self.bot.cursor.execute("commit")
-                    except discord.errors.HTTPException:  # Seems to trigger only when an emoji is missing.
-                        traceback.print_exc()  # TODO: This will spam the console if the emoji doesn't exist.
                     except discord.errors.Forbidden:  # Don't have permission/too many emoji attached to message.
                         pass
+                    except discord.errors.HTTPException:  # Seems to trigger only when an emoji is missing.
+                        traceback.print_exc()  # TODO: This will spam the console if the emoji doesn't exist.
                     except:
                         traceback.print_exc()
 
