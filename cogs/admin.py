@@ -7,6 +7,7 @@ from discord.ext import commands
 
 class Admin(commands.Cog, name="admin"):
     """Admin commands. Mostly just fun things for me to toy with, sometimes test, rarely useful."""
+
     def __init__(self, bot):
         self.bot = bot
         self.cur = bot.cursor
@@ -16,6 +17,14 @@ class Admin(commands.Cog, name="admin"):
         self.r_cdn = re.compile(
             r"(https://cdn.discordapp.com/attachments/.*?\.(gif|png|jpg))|(https://cdn.discordapp.com/emojis/)")  # The domain images and stuff are placed.
         self.r_cdn_filename = re.compile(r"([^/]*?(\.png|\.jpg|\.gif))")
+
+        self.rc_dunno = self.bot.Chance({
+            "No encuentro la wea": 100,
+            "Not a clue": 100,
+            "Haven't a scooby": 100,
+            "a dinnae ken": 100,
+            "dunno": 100
+        })
 
     @commands.command(name=f"timestamp")
     async def timestamp(self, ctx):
@@ -197,6 +206,75 @@ class Admin(commands.Cog, name="admin"):
         if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
         # TODO: This.
 
+    @commands.command(name="id")
+    async def get_snowflake(self, ctx):
+        """
+        Try to figure out what a discord snowflake belongs to.
+        Can get:
+            Any user
+            Servers this bot is in.
+            Channels or emoji in servers this bot has access to.
+
+        Example:
+            c.id 565879875647438851
+        """
+        if not await self.bot.has_perm(ctx, message_on_fail=False): return
+        id = self.bot.get_variable(ctx.message.content, type="int")
+        if not id:
+            await ctx.send(self.rc_dunno.get_value())
+            return
+        id = int(id)
+
+        b = self.bot
+        result = b.get_channel(id)
+        if result:
+            await ctx.send(f"Channel {result.mention}")
+            return
+
+        result = b.get_user(id)
+        if result:
+            await ctx.send(f"User {result.mention}")
+            return
+
+        result = b.get_guild(id)
+        if result:
+            await ctx.send(f"Server {result.name}")
+            return
+
+        result = b.get_emoji(id)
+        if result:
+            if result.is_usable():
+                await ctx.send(f"Emoji {result}")
+                return
+            else:
+                await ctx.send(f"Emoji belonging to {result.guild.name} called {result.name}")
+                return
+
+        # TODO: Find a way to limit users from spamming API calls.
+        try:
+            result = await b.fetch_user(id)
+            await ctx.send(f"User {result.mention}")
+            return
+        except:
+            pass
+
+        await ctx.send(self.rc_dunno.get_value())
+
+    @commands.command(name="id.help")
+    async def get_snowflake(self, ctx):
+        docstring = """
+        ```Try to figure out what a discord snowflake belongs to.
+        Can get:
+            Any user
+            Servers this bot is in.
+            Channels or emoji in servers this bot has access to.
+
+        Example:
+            c.id 565879875647438851```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+        if not await self.bot.has_perm(ctx, dm=True): return
 
     @commands.command(name="ignore.help")
     async def ignore_help(self, ctx):
@@ -293,19 +371,20 @@ class Admin(commands.Cog, name="admin"):
         """The core help command."""
         if not await self.bot.has_perm(ctx, dm=True): return
         help_string = "```Modules:\n" \
-        "c.role - Vanity roles and moderation controls.\n" \
-        "c.emoji - Adding and moderating emoji.\n" \
-        "c.react - Automatic reactions to messages.\n" \
-        "c.room - Temporary rooms.\n" \
-        "c.vc - underdeveloped VC commands.\n" \
-        "\n" \
-        "Core commands:\n" \
-        "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
-        "c.speak - Makes HonkBonk say something, somewhere :).\n" \
-        "c.dm - Makes HonkBonk DM a user.\n" \
-        "c.ignore - Setting honkbonk to ignore users/channels.\n" \
-        "c.ignore.list - A list of ignored channels and users.\n" \
-        "c.ignore.none - Stops ignoring all users and channels.```"
+                      "c.role - Vanity roles and moderation controls.\n" \
+                      "c.emoji - Adding and moderating emoji.\n" \
+                      "c.react - Automatic reactions to messages.\n" \
+                      "c.room - Temporary rooms.\n" \
+                      "c.vc - underdeveloped VC commands.\n" \
+                      "\n" \
+                      "Core commands:\n" \
+                      "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
+                      "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
+                      "c.speak - Makes HonkBonk say something, somewhere :).\n" \
+                      "c.dm - Makes HonkBonk DM a user.\n" \
+                      "c.ignore - Setting honkbonk to ignore users/channels.\n" \
+                      "c.ignore.list - A list of ignored channels and users.\n" \
+                      "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
 
 
