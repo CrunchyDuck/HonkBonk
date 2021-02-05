@@ -10,7 +10,6 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from random import random
 import traceback
-import json
 from math import trunc
 
 # TODO: Find some way to integrate my variable passing system from discord-powers, as it is way better than discord's methods.
@@ -180,10 +179,13 @@ class MyBot(commands.Bot):
     def is_channel_ignored(self, ctx=None, server=0, channel_id=0):
         """Checks if a channel or category is ignored."""
         if ctx:
-            server = ctx.guild.id
-            channel = ctx.channel
-            cat_id = channel.category_id
-            channel_id = channel.id
+            try:
+                server = ctx.guild.id
+                channel = ctx.channel
+                cat_id = channel.category_id
+                channel_id = channel.id
+            except:
+                return False
 
             # Check category if CTX object
             if cat_id:
@@ -199,8 +201,11 @@ class MyBot(commands.Bot):
             return False
 
     def is_user_ignored(self, ctx):
-        server = ctx.guild.id
-        user_id = ctx.author.id
+        try:
+            server = ctx.guild.id
+            user_id = ctx.author.id
+        except:
+            return False
         self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={user_id}", ("ignore",))
         if self.cursor.fetchone():
             return True
