@@ -53,7 +53,7 @@ class MyBot(commands.Bot):
     def __init__(self, bot_prefix, intents=None):
         super().__init__(bot_prefix, intents=intents)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
-        self.active_cogs = ["emoji", "admin", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel"]
+        self.active_cogs = ["emoji", "admin", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel", "server_specific"]
 
         self.crunchyduck = myID  # Sometimes it's useful to know who your owner is :)
 

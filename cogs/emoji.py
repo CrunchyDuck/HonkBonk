@@ -123,11 +123,6 @@ class Emoji(commands.Cog, name="emoji"):
             return
 
     @commands.command(name=f"{prefix}.owner")
-    async def emoji_owner(self, ctx):
-        # TODO: Command to check who owns an emoji
-        pass
-
-    @commands.command(name=f"{prefix}.owner")
     async def emoji_ownership(self, ctx):
         """
         Transfers ownership of an emoji to another person.
