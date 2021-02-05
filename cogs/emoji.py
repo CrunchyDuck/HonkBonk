@@ -127,7 +127,7 @@ class Emoji(commands.Cog, name="emoji"):
         # TODO: Command to check who owns an emoji
         pass
 
-    @commands.command(name=f"{prefix}.db.owner")
+    @commands.command(name=f"{prefix}.owner")
     async def emoji_ownership(self, ctx):
         """
         Transfers ownership of an emoji to another person.
@@ -192,14 +192,6 @@ class Emoji(commands.Cog, name="emoji"):
             emoji_list += f"<:{e[0]}:{e[1]}> "
         await ctx.send(f"Emoji added to database: {emoji_list}")
 
-    @commands.command(name=f"{prefix}.db.clear")
-    async def db_clear(self, ctx):
-        """Clears the database."""
-        if not await self.bot.has_perm(ctx, admin=True): return
-
-        self.bot.cursor.execute("DELETE FROM custom_emoji")
-        await ctx.send("obliterated.")
-
     @commands.command(name=f"{prefix}.info")
     async def emoji_info(self, ctx):
         """
@@ -250,6 +242,88 @@ class Emoji(commands.Cog, name="emoji"):
             embed.add_field(name="Animated emoji slots:", value=limit - len(animated_emoji), inline=True)
 
             await ctx.send(embed=embed)
+
+
+    @commands.command(name=f"{prefix}.help")
+    async def emoji_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```This module handles adding and removing emoji from the server
+        
+        c.emoji.push - Add an emoji.
+        c.emoji.pop - Remove an emoji.
+        c.emoji.owner - Transfer ownership of an emoji.
+        c.emoji.info - Provides information about a given emoji in this server, or slots left.```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.push.help")
+    async def emoji_push_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Adds a custom emoji to the server.
+        
+        Arguments:
+            name: Name of the emoji.
+            image: Can be provided as either a discord cdn image, or as an attached picture.
+            
+        Example:
+            c.emoji.push name="artwork" https://cdn.discordapp.com/attachments/770741727153750027/802341424087433276/masterpeice.png```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.pop.help")
+    async def emoji_pop_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Remove an emoji. This can only be done if you are an admin, or originally pushed the emoji
+        
+        Arguments:
+            emoji: The custom to remove.
+            
+        Example:
+            c.emoji.pop :artwork:```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.owner.help")
+    async def emoji_owner_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Transfers ownership of an emoji to another person.
+        Can only be done by admins or the owner.
+        
+        Arguments:
+            emoji: The owner to transfer ownership from
+            target: A mention of who to transfer the emoji to.
+            
+        Example:
+            c.emoji.db.owner @Oken :artwork:```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name=f"{prefix}.info.help")
+    async def emoji_info_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        Provides info about a specific emoji, or general info otherwise.
+        Information provided:
+            (Emoji provided) Name, owner, emoji snowflake, date added.
+            (No emoji) Static emoji slots, animated emoji slots
+            
+        Arguments:
+            emoji: The emoji to get info from. Otherwise, provide info about open emoji slots.
+            
+        Example:
+            c.emoji.info :artwork:
+            c.emoji.info
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
 
     async def get_emoji(self, ctx=None, string=None, api_call=True):
         """Finds the first emoji given in a message using RegEx:tm:"""
