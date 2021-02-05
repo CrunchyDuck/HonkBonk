@@ -83,7 +83,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         archive_cat = ctx.guild.get_channel(self.create_category)
 
         # Does user already have a channel open?
-        open_rooms = self.user_rooms_open(owner.id)
+        open_rooms = self.user_rooms_open(author.id)
         if len(open_rooms) > 0 and ctx.author.id not in self.bot.admins:
             await ctx.send(f"You already have a room open! Use c.{self.prefix}.close in the room to close it.")
             return
@@ -498,8 +498,14 @@ class TempChannel(commands.Cog, name="temp_channel"):
         cur.execute(f"SELECT room_id FROM temp_room WHERE id={user_id}")
         results = cur.fetchall()
         # I love list comprehension
-        ids = [x[0] for x in results]
-        return [self.bot.get_channel(x) for x in ids]
+        ids = [self.bot.get_channel(x[0]) for x in results]
+
+        # Clean up any rooms that might have been deleted.
+        dead_rooms = [x for x in ids if x is None]
+        for room in dead_rooms:
+            cur.execute(f"DELETE FROM temp_room WHERE ")
+
+        return [x for x in ids if x is not None]
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """
