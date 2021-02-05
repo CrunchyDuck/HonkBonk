@@ -26,7 +26,6 @@ class Admin(commands.Cog, name="admin"):
             "a dinnae ken": 100,
             "dunno": 100
         })
-        self.init_db(self.cur)
 
     @commands.command(name=f"timestamp")
     async def timestamp(self, ctx):
@@ -262,29 +261,6 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(self.rc_dunno.get_value())
 
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
-        """Remove the DJ role when a user leaves."""
-        # check if left.
-        if after.channel is not None:
-            return
-
-        # Check if in db
-        self.bot.cursor.execute(f"SELECT * FROM dj_temp WHERE user_id={member.id}")
-        res = self.bot.cursor.fetchone()
-        if not res:
-            return
-
-        # Remove role.
-        dj = before.channel.guild.get_role(804454276772266034)
-        try:
-            await member.remove_roles(dj, reason="DJ user left VC")
-            self.cur.execute("DELETE FROM dj_temp")
-        except:
-            traceback.print_exc()
-            return
-
-
 
     @commands.command(name="id.help")
     async def get_snowflake_help(self, ctx):
@@ -412,15 +388,6 @@ class Admin(commands.Cog, name="admin"):
                       "c.ignore.list - A list of ignored channels and users.\n" \
                       "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
-
-    def init_db(self, cursor):
-        cursor.execute("begin")
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS dj_temp ("  # An entry is created for each change that is detected.
-            "user_id INTEGER,"  # ID of the user
-            "end_time INTEGER"  # The time this role should be removed.
-            ")")
-        cursor.execute("commit")
 
 
 def setup(bot):

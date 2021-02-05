@@ -12,6 +12,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
     def __init__(self, bot):
         self.bot = bot
         self.cur = bot.cursor
+        self.init_db(self.cur)
 
     @commands.command(name="dj")
     async def request_dj(self, ctx):
@@ -71,6 +72,38 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        """Remove the DJ role when a user leaves."""
+        # check if left.
+        if after.channel is not None:
+            return
+
+        # Check if in db
+        self.bot.cursor.execute(f"SELECT * FROM dj_temp WHERE user_id={member.id}")
+        res = self.bot.cursor.fetchone()
+        if not res:
+            return
+
+        # Remove role.
+        dj = before.channel.guild.get_role(804454276772266034)
+        try:
+            await member.remove_roles(dj, reason="DJ user left VC")
+            self.cur.execute("DELETE FROM dj_temp")
+            cnl = self.bot.get_channel(802620220832481315)
+            await cnl.send(f"Removed dj role from {member.name} (User left channel)")
+        except:
+            traceback.print_exc()
+            return
+
+    def init_db(self, cursor):
+        cursor.execute("begin")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS dj_temp ("  # An entry is created for each change that is detected.
+            "user_id INTEGER,"  # ID of the user
+            "end_time INTEGER"  # The time this role should be removed.
+            ")")
+        cursor.execute("commit")
 
 def setup(bot):
     bot.add_cog(ServerSpecific(bot))

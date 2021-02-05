@@ -512,7 +512,7 @@ async def timed_loop(aBot):
             traceback.print_exc()
 
 
-        # ======= i don't know what to call this one =======
+        # ======= dj role =======
         try:
             aBot.cursor.execute("SELECT * FROM dj_temp")
             res = aBot.cursor.fetchone()  # there should only ever be one in here. i hope.
@@ -532,6 +532,12 @@ async def timed_loop(aBot):
                         pass
                     aBot.cursor.execute(f"DELETE FROM dj_temp")  # clear that dummy thicc list.
                     aBot.cursor.execute("commit")
+
+                    try:
+                        cnl = aBot.get_channel(802620220832481315)
+                        await cnl.send(f"Removed dj role from {member.name} (Role timeout)")
+                    except:
+                        traceback.print_exc()
                 else:
                     break
                     # TODO: Send message in logging channel about the role being removed.
