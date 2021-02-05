@@ -507,6 +507,33 @@ async def timed_loop(aBot):
             traceback.print_exc()
 
 
+        # ======= i don't know what to call this one =======
+        try:
+            aBot.cursor.execute("SELECT * FROM dj_temp")
+            res = aBot.cursor.fetchone()  # there should only ever be one in here. i hope.
+            if res:
+                if time_now > res[1]:
+                    server = aBot.get_guild(704361803953733693)
+                    member = server.get_member(res[0])
+                    dj = server.get_role(804454276772266034)  # hope this works.
+
+                    try:
+                        await member.remove_roles(dj, reason="Temporary role end time.")
+                    except discord.errors.Forbidden:
+                        # Don't have the permissions.
+                        pass
+                    except discord.errors.HTTPException:
+                        # Failed.
+                        pass
+                    aBot.cursor.execute(f"DELETE FROM dj_temp")  # clear that dummy thicc list.
+                    aBot.cursor.execute("commit")
+                else:
+                    break
+                    # TODO: Send message in logging channel about the role being removed.
+        except:
+            traceback.print_exc()
+
+
 def allgroups(matchobject):
     """Returns all of the strings from a regex match object added together."""
     string = ""
@@ -524,6 +551,7 @@ def allgroups(matchobject):
 # IDEA: Allow me to ban reactions on X person's messages.
 # IDEA: Quote database.
 # IDEA: Github integration
+# IDEA: emoji only channel.
 
 # TODO: Allow .disable to stop a command running in a server.
 # TODO: Set up Doxygen html documentation.
