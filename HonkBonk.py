@@ -539,7 +539,7 @@ async def timed_loop(aBot):
                     except:
                         traceback.print_exc()
                 else:
-                    break
+                    pass
                     # TODO: Send message in logging channel about the role being removed.
         except:
             traceback.print_exc()

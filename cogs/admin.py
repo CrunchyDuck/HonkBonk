@@ -382,12 +382,19 @@ class Admin(commands.Cog, name="admin"):
                       "Core commands:\n" \
                       "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
                       "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
+                      "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
                       "c.speak - Makes HonkBonk say something, somewhere :).\n" \
                       "c.dm - Makes HonkBonk DM a user.\n" \
                       "c.ignore - Setting honkbonk to ignore users/channels.\n" \
                       "c.ignore.list - A list of ignored channels and users.\n" \
                       "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
+
+    @commands.command(name="pat")
+    async def pat(self, ctx):
+        """Give Honk some appreciation in the form of a pat. Good bot."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+        await ctx.send("UwU")
 
 
 def setup(bot):
