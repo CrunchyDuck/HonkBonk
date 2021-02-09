@@ -1,9 +1,7 @@
 import discord
-import re
 from discord.ext import commands
 import time
 import datetime
-import asyncio
 
 class TempChannel(commands.Cog, name="temp_channel"):
     """Allows people to set up a temporary channel for discussion. This room is archived after it is closed."""
@@ -91,6 +89,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         name = self.bot.get_variable(message.content, "name", type="str")
         nsfw = self.bot.get_variable(message.content, "nsfw", type="keyword", default=False)
         duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
+        duration = max(min(336, duration), 0.0003)  # Limit to 1 month or 1 second.
         topic = self.bot.get_variable(message.content, "topic", type="str", default="")
 
         end_time = self.bot.hours_from_now(duration)
@@ -106,7 +105,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
         try:
             cat_perms = archive_cat.overwrites
-            overwrites = {**self.create_temp_room_overrides(owner), **cat_perms}  # Merge dictionaries.
+            overwrites = {**self.create_temp_room_overrides(author), **cat_perms}  # Merge dictionaries.
             created_channel = await ctx.guild.create_text_channel(name=name, category=ctx.guild.get_channel(self.create_category),
                 sync_permission=True, nsfw=nsfw, topic=topic, overwrites=overwrites)
         except:
@@ -166,18 +165,22 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
     @commands.command(name=f"{prefix}.time")
     async def time_left(self, ctx):
-        """Changes how much time the room has left,
+        """```Changes how much time the room has left,
         OR returns how much longer until the channel is automatically archived.
         Must be called from within the channel.
         Changing time can only be done by an admin or the owner.
         Arguments:
+            (Optional)
             time: The new duration of the room.
+            #channel: A mention of the channel to check. Assumes current channel otherwise.
         Example:
             c.room.time
             c.room.time 1.2
+            c.room.time #d-r-e-a-m-s```
         """
         if not await self.bot.has_perm(ctx, ignored_rooms=True): return
-        channel = ctx.channel
+        channel = ctx.message.channel_mentions[0] if ctx.message.channel_mentions else ctx.channel
+        duration = float(self.bot.get_variable(ctx.message.content, "time", type="float", default=0))  # Provided as hours.
         user = ctx.author
 
         # Check if this channel is a temp channel
@@ -186,7 +189,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             await ctx.send("This channel doesn't seem to be a temporary channel.")
             return
 
-        hours = float(self.bot.get_variable(ctx.message.content, type="float", default=0))
+        hours = min(336, duration)  # Limit to 1 month
         if hours:
             if db_entry["user_id"] == user.id or user.id in self.bot.admins:
                 cur = self.bot.cursor
@@ -256,6 +259,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         owner = self.bot.admin_override(ctx)  # Allow an admin to define other users.
         channel = message.channel_mentions[0] if message.channel_mentions else ctx.channel
         duration = float(self.bot.get_variable(message.content, "time", type="float", default=24))  # Provided as hours.
+        duration = max(min(336, duration), 0.0003)  # Limit to 1 month or 1 second.
         archive_cat = ctx.guild.get_channel(self.create_category)
 
         end_time = self.bot.hours_from_now(duration)
@@ -441,10 +445,12 @@ class TempChannel(commands.Cog, name="temp_channel"):
         Arguments:
             (Optional)
             time: The new duration of the room.
+            #channel: A mention of the channel to check. Assumes current channel otherwise.
             
         Example:
             c.room.time  # Checks time remaining
-            c.room.time 1.2  # Sets time remaining.```
+            c.room.time time=1.2  # Sets time remaining.
+            c.room.time #d-r-e-a-m-s  # Checks the time of this user room.```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
@@ -498,14 +504,18 @@ class TempChannel(commands.Cog, name="temp_channel"):
         cur.execute(f"SELECT room_id FROM temp_room WHERE id={user_id}")
         results = cur.fetchall()
         # I love list comprehension
-        ids = [self.bot.get_channel(x[0]) for x in results]
+        ids = [x[0] for x in results]
+        open_rooms = []
 
         # Clean up any rooms that might have been deleted.
-        dead_rooms = [x for x in ids if x is None]
-        for room in dead_rooms:
-            cur.execute(f"DELETE FROM temp_room WHERE ")
+        for id in ids:
+            room = self.bot.get_channel(id)
+            if room is None:
+                cur.execute(f"DELETE FROM temp_room WHERE room_id={id}")
+            else:
+                open_rooms.append(room)
 
-        return [x for x in ids if x is not None]
+        return open_rooms
 
     async def order_cat_alphabetically(self, category_channel, descending=False):
         """

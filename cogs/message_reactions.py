@@ -168,7 +168,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # minions.
         try:
-            if re.search(r"(minion)", msg):
+            if re.search(r"(minion|banana)", msg):
                 await message.add_reaction(self.rc_minion.get_value())
         except:
             traceback.print_exc()

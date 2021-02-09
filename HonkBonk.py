@@ -12,8 +12,6 @@ from random import random
 import traceback
 from math import trunc
 
-# TODO: Find some way to integrate my variable passing system from discord-powers, as it is way better than discord's methods.
-
 load_dotenv()  # Fetches from .env file.
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
 myID = int(os.getenv("OWNER_ID"))  # The ID of my account :) Certain commands can only be run by admins like me.
@@ -469,12 +467,12 @@ async def timed_loop(aBot):
                 if time_now > target[2]:  # If we've passed the time this is supposed to terminate.
                     guild = aBot.get_guild(guild_id)
                     TextChannel = guild.get_channel(target[1])
-                    await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
                     try:
+                        await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
                         await TextChannel.send("Archiving channel...")
                     except: pass
 
-                    aBot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (TextChannel.id,))
+                    aBot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (target[1],))
                     aBot.cursor.execute("commit")
                 else:
                     break
