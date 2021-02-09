@@ -30,8 +30,6 @@ class MyBot(commands.Bot):
         A list of the currently loaded cogs.
     crunchyduck: :class:'int'
         My Discord snowflake.
-    banned_from_commands: List[:class:'int']
-        Discord snowflakes that are disallowed from using most of the bot's commands.
     zws: :class:'str'
         A zero width space, used in embeds.
     db:
@@ -356,7 +354,7 @@ class MyBot(commands.Bot):
                 Something with a value of 100 in a total of 1000 has a 10% chance of being chosen.
                 A higher value, of course, means something is more likely.
         """
-        def __init__(self, chance_index={}):
+        def __init__(self, chance_index=None):
             self.chance_index = chance_index
             self.chance_max = 0
 
