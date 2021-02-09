@@ -390,6 +390,12 @@ class Admin(commands.Cog, name="admin"):
                       "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
 
+    @commands.command(name="pat")
+    async def pat(self, ctx):
+        """Give Honk some appreciation in the form of a pat. Good bot."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+        await ctx.send("UwU")
+
 
 def setup(bot):
     bot.add_cog(Admin(bot))
