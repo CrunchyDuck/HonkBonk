@@ -98,6 +98,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
 
                         await ctx.send(f"Given {ctx.author.mention} {dj.mention} for 1 hour.")
                         return
+
         else:  # If the user does own the role, then:
             # Find the mentioned user
             if user:
@@ -108,6 +109,12 @@ class ServerSpecific(commands.Cog, name="server_specific"):
                 vc = user.voice
                 if not vc:
                     await ctx.send("The mentioned user must be in a vc to gift them the DJ role.")
+                    return
+
+                # Check if mentioned user is a bot. If so, the role can't be gifted to them.
+                is_bot = user.bot
+                if is_bot:
+                    await ctx.send("The DJ role can't be gifted to bots.")
                     return
 
                 # Remove DJ role from current owner
