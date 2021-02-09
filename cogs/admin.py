@@ -382,6 +382,7 @@ class Admin(commands.Cog, name="admin"):
                       "Core commands:\n" \
                       "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
                       "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
+                      "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
                       "c.speak - Makes HonkBonk say something, somewhere :).\n" \
                       "c.dm - Makes HonkBonk DM a user.\n" \
                       "c.ignore - Setting honkbonk to ignore users/channels.\n" \

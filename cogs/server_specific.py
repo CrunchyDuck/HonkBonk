@@ -14,63 +14,149 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.cur = bot.cursor
         self.init_db(self.cur)
 
-    @commands.command(name="dj")
-    async def request_dj(self, ctx):
-        """
-        Allow a user to request the dj role.
-        You must be in a VC for this to function, and no one else must have the DJ role.
-        Removed when you leave the VC or after an hour.
-
-        Example:
-            c.dj
-        """
-        if not await self.bot.has_perm(ctx): return
-        dj = ctx.guild.get_role(804454276772266034)
-        if not dj:
-            return
-
-        # Check if user is in a VC.
-        vs = ctx.author.voice
-        vc = vs.channel
-        if not vc:
-            await ctx.send("You must be in a VC to request DJ.")
-            return
-
-        # Check if another user owns the DJ role.
-        self.bot.cursor.execute("SELECT * FROM dj_temp")
-        res = self.bot.cursor.fetchone()
-        if res:
-            await ctx.send(f"{self.bot.get_user(res[0]).mention} already has the DJ role.")
-            return
-
-        # Apply role.
-        try:
-            await ctx.author.add_roles(dj)
-        except:
-            traceback.print_exc()
-            return
-
-        # Create DB entry.
-        time = 1  # Hard coded for now.
-        end_time = self.bot.hours_from_now(time)
-        time_string = self.bot.time_to_string(hours=time)
-        self.bot.cursor.execute("INSERT INTO dj_temp VALUES(?, ?)", [ctx.author.id, end_time])
-
-        await ctx.send(f"Given {ctx.author.mention} {dj.mention} for 1 hour.")
-
     @commands.command(name="dj.help")
     async def dj_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
-            ```Allow a user to request the dj role.
-            You must be in a VC for this to function, and no one else must have the DJ role.
-            Removed when you leave the VC or after an hour.
+        ```Allow a user to gift the DJ role to another user or request it for themselves.
+        You must be in VC to gain the role. If gifting, you must own the role already and the mentioned user must be in VC.
+        Removed when you leave the VC or after an hour.
 
-            Example:
-                c.dj```
+        Arguments:
+            (Optional)
+            user: The user to gift the DJ role to. This can be provided as an argument of their ID, or as a mention.
+            
+        Examples:
+            (Requesting) c.dj
+            (Gifting) c.dj @crunc
+        ```
             """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
+
+    @commands.command(name="dj")
+    async def dj(self, ctx):
+        if not await self.bot.has_perm(ctx): return
+        """
+        Allow a user to gift the DJ role to another user or request it for themselves.
+        You must be in VC to gain the role. If gifting, you must own the role already and the mentioned user must be in VC.
+        Removed when you leave the VC or after an hour.
+
+        Arguments:
+            o_user: A special variable for bypassing some checks. See role_overpower
+        Examples:
+            (Requesting) c.dj
+            (Gifting) c.dj @crunc
+        """
+        message = ctx.message
+        content = message.content
+        dj = ctx.guild.get_role(804454276772266034)
+        user = message.mentions
+        if not dj:
+            return
+
+        # Get the current owner of the dj role, if they exist, and store it in the user_id variable.
+        self.bot.cursor.execute("SELECT user_id FROM dj_temp")
+        res = self.bot.cursor.fetchone()
+        if res:
+            try:
+                user_id = res[0]
+            except discord.ext.commands.errors.CommandInvokeError:
+                return
+        else:
+            user_id = 0
+
+        # Make sure the person attempting to gift the DJ role currently owns the role.
+        # If they do not, and the role is available, give them the role.
+        if user_id != ctx.author.id:
+            try:
+                await ctx.send(f"{self.bot.get_user(res[0]).mention} currently owns the DJ role, you can't gift or request it.")
+                return
+            except TypeError:
+                if user:
+                    await ctx.send("You must own the DJ role before attempting to gift it.")
+                    return
+                else:
+                    vs = ctx.author.voice
+                    if not vs:
+                        await ctx.send("You must be in a VC to request DJ.")
+                        return
+                    else:
+                        # Apply role.
+                        try:
+                            await ctx.author.add_roles(dj)
+                        except:
+                            traceback.print_exc()
+                            return
+
+                        # Create DB entry.
+                        time = 1  # Hard coded for now.
+                        end_time = self.bot.hours_from_now(time)
+                        time_string = self.bot.time_to_string(hours=time)
+                        self.bot.cursor.execute("INSERT INTO dj_temp VALUES(?, ?)", [ctx.author.id, end_time])
+                        self.bot.cursor.execute("commit")
+
+                        await ctx.send(f"Given {ctx.author.mention} {dj.mention} for 1 hour.")
+                        return
+        else:  # If the user does own the role, then:
+            # Find the mentioned user
+            if user:
+                user = message.mentions[0]
+                new_user_id = user.id
+
+                # Check if mentioned user is in a VC.
+                vc = user.voice
+                if not vc:
+                    await ctx.send("The mentioned user must be in a vc to gift them the DJ role.")
+                    return
+
+                # Remove DJ role from current owner
+                try:
+                    await ctx.author.remove_roles(dj, reason="Role remove command")
+                except discord.errors.Forbidden:
+                    await ctx.send(
+                        "I require manage roles, and the role I'm removing must be lower than my highest role.")
+                    return
+                except discord.errors.HTTPException:
+                    await ctx.send("Failed removing role.")
+                    return
+                except:
+                    traceback.print_exc()
+
+                # Apply the DJ role to the user
+                try:
+                    await user.add_roles(dj)
+                except discord.errors.Forbidden:
+                    await ctx.send(
+                        "I require manage roles, and the role I'm removing must be lower than my highest role.")
+                    return
+                except discord.errors.HTTPException:
+                    await ctx.send("Adding role failed.")
+                    return
+                except:
+                    traceback.print_exc()
+                    return
+
+                # Create DB entry
+                time = 1  # Hard coded for now.
+                end_time = self.bot.hours_from_now(time)
+                time_string = self.bot.time_to_string(hours=time)
+                self.bot.cursor.execute(
+                    f"UPDATE dj_temp SET user_id={new_user_id}, end_time={end_time} WHERE user_id={user_id}")
+                self.bot.cursor.execute("commit")
+
+                await ctx.send(f"{ctx.author.mention} has given {user.mention} {dj.mention} for an hour.")
+
+            else:  # If no user is mentioned:
+                user_id = int(self.bot.get_variable(content, "user", type="int", default=0))
+                if not user_id:
+                    await ctx.send("Mention a user or provide their id as user=id")
+                    return
+                user = ctx.guild.get_member(user_id)
+                if not user:
+                    await ctx.send(f"Cannot find member with id {user_id}")
+                    return
+
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
