@@ -12,6 +12,8 @@ from random import random
 import traceback
 from math import trunc
 
+# TODO: Find some way to integrate my variable passing system from discord-powers, as it is way better than discord's methods.
+
 load_dotenv()  # Fetches from .env file.
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
 myID = int(os.getenv("OWNER_ID"))  # The ID of my account :) Certain commands can only be run by admins like me.
@@ -30,6 +32,8 @@ class MyBot(commands.Bot):
         A list of the currently loaded cogs.
     crunchyduck: :class:'int'
         My Discord snowflake.
+    banned_from_commands: List[:class:'int']
+        Discord snowflakes that are disallowed from using most of the bot's commands.
     zws: :class:'str'
         A zero width space, used in embeds.
     db:
@@ -354,7 +358,7 @@ class MyBot(commands.Bot):
                 Something with a value of 100 in a total of 1000 has a 10% chance of being chosen.
                 A higher value, of course, means something is more likely.
         """
-        def __init__(self, chance_index=None):
+        def __init__(self, chance_index={}):
             self.chance_index = chance_index
             self.chance_max = 0
 
@@ -465,12 +469,12 @@ async def timed_loop(aBot):
                 if time_now > target[2]:  # If we've passed the time this is supposed to terminate.
                     guild = aBot.get_guild(guild_id)
                     TextChannel = guild.get_channel(target[1])
+                    await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
                     try:
-                        await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
                         await TextChannel.send("Archiving channel...")
                     except: pass
 
-                    aBot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (target[1],))
+                    aBot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (TextChannel.id,))
                     aBot.cursor.execute("commit")
                 else:
                     break
@@ -493,6 +497,14 @@ async def timed_loop(aBot):
                         print("member not found.")
                     try:
                         await member.remove_roles(role, reason="Temporary role end time.")
+
+                        # If the role removed is the "asight" role, DM user to let them know it's been removed.
+                        if role.id == 802630159999828009:
+                            try:
+                                await member.send("Asight role has been removed. You can now talk in the server again.")
+                            except:
+                                traceback.print_exc()
+
                     except discord.errors.Forbidden:
                         # Don't have the permissions.
                         pass
