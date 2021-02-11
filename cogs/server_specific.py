@@ -34,6 +34,20 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
+    @commands.command(name="asight.help")
+    async def dj_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            Allow a user to assign themselves the "asight" role for a specified amount of time.
+
+            Arguments:
+                time: The amount of time to assign the role for, in hours. Defaults to 1 hour.
+            Examples:
+                c.asight time=4
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
     @commands.command(name="dj")
     async def dj(self, ctx):
         if not await self.bot.has_perm(ctx): return
@@ -163,6 +177,68 @@ class ServerSpecific(commands.Cog, name="server_specific"):
                 if not user:
                     await ctx.send(f"Cannot find member with id {user_id}")
                     return
+
+    @commands.command(name="asight")
+    async def asight(self, ctx):
+        if not await self.bot.has_perm(ctx): return
+        """
+        Allow a user to assign themselves the "asight" role for a specified amount of time.
+
+        Arguments:
+            time: The amount of time to assign the role for, in hours. Defaults to 1 hour.
+        Examples:
+            c.asight time=4
+        """
+        message = ctx.message
+        content = message.content
+        time = float(self.bot.get_variable(content, "time", type="float", default=0))
+        asight = ctx.guild.get_role(802630159999828009)
+        user = message.author
+        if not asight:
+            return
+
+        # Check if there's already an entry in the database for this user/role
+        self.bot.cursor.execute(
+            f"SELECT rowid, * FROM temp_role WHERE"
+            f" user_id={user.id} AND server={ctx.guild.id} AND role_ids={asight.id}")
+        result = self.bot.cursor.fetchone()
+
+        # Apply the asight role to the user
+        try:
+            await user.add_roles(asight)
+        except discord.errors.Forbidden:
+            await ctx.send(
+                "I need the manage roles permission for this, and the role must be lower than my highest role.")
+            return
+        except discord.errors.HTTPException:
+            await ctx.send("Adding role failed.")
+            return
+        except:
+            traceback.print_exc()
+            return
+
+        if time != 0:
+            print(time)
+            time = max(min(336, time), 0.0003)  # Limit to 1 month or 1 second.
+            end_time = self.bot.hours_from_now(time)
+            time_string = self.bot.time_to_string(hours=time)
+            print(time)
+
+            if result:  # Update existing entry.
+                self.bot.cursor.execute(f"UPDATE temp_role SET end_time={end_time} WHERE rowid={result[0]}")
+            else:  # Create entry.
+                self.bot.cursor.execute(
+                    f"INSERT INTO temp_role VALUES({ctx.guild.id}, {user.id}, {end_time}, {asight.id})")
+
+            await ctx.send(f"Asight role given to {user.name} for {time_string}!")
+        else:
+            await ctx.send("Provided time must be above 0.")
+            return
+
+        try:
+            self.bot.cursor.execute("commit")
+        except:
+            pass
 
 
     @commands.Cog.listener()
