@@ -35,7 +35,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         await ctx.send(docstring)
 
     @commands.command(name="asight.help")
-    async def dj_help(self, ctx):
+    async def asight_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
             Allow a user to assign themselves the "asight" role for a specified amount of time.
