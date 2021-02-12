@@ -508,6 +508,7 @@ async def timed_loop(aBot):
                         # Failed.
                         pass
                     aBot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={rowid}")
+                    aBot.cursor.execute("commit")
                 else:
                     break
 

@@ -14,40 +14,6 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.cur = bot.cursor
         self.init_db(self.cur)
 
-    @commands.command(name="dj.help")
-    async def dj_help(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-        docstring = """
-        ```Allow a user to gift the DJ role to another user or request it for themselves.
-        You must be in VC to gain the role. If gifting, you must own the role already and the mentioned user must be in VC.
-        Removed when you leave the VC or after an hour.
-
-        Arguments:
-            (Optional)
-            user: The user to gift the DJ role to. This can be provided as an argument of their ID, or as a mention.
-            
-        Examples:
-            (Requesting) c.dj
-            (Gifting) c.dj @crunc
-        ```
-            """
-        docstring = self.bot.remove_indentation(docstring)
-        await ctx.send(docstring)
-
-    @commands.command(name="asight.help")
-    async def asight_help(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-        docstring = """
-            Allow a user to assign themselves the "asight" role for a specified amount of time.
-
-            Arguments:
-                time: The amount of time to assign the role for, in hours. Defaults to 1 hour.
-            Examples:
-                c.asight time=4
-            """
-        docstring = self.bot.remove_indentation(docstring)
-        await ctx.send(docstring)
-
     @commands.command(name="dj")
     async def dj(self, ctx):
         if not await self.bot.has_perm(ctx): return
@@ -191,7 +157,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         """
         message = ctx.message
         content = message.content
-        time = float(self.bot.get_variable(content, "time", type="float", default=0))
+        time = float(self.bot.get_variable(content, "time", type="float", default=1))
         asight = ctx.guild.get_role(802630159999828009)
         user = message.author
         if not asight:
@@ -217,29 +183,59 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             traceback.print_exc()
             return
 
-        if time != 0:
-            print(time)
+        if time > 0:
             time = max(min(336, time), 0.0003)  # Limit to 1 month or 1 second.
             end_time = self.bot.hours_from_now(time)
             time_string = self.bot.time_to_string(hours=time)
-            print(time)
 
             if result:  # Update existing entry.
                 self.bot.cursor.execute(f"UPDATE temp_role SET end_time={end_time} WHERE rowid={result[0]}")
             else:  # Create entry.
                 self.bot.cursor.execute(
                     f"INSERT INTO temp_role VALUES({ctx.guild.id}, {user.id}, {end_time}, {asight.id})")
+            self.bot.cursor.execute("commit")
 
             await ctx.send(f"Asight role given to {user.name} for {time_string}!")
         else:
             await ctx.send("Provided time must be above 0.")
             return
 
-        try:
-            self.bot.cursor.execute("commit")
-        except:
-            pass
 
+    @commands.command(name="dj.help")
+    async def dj_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```Allow a user to gift the DJ role to another user or request it for themselves.
+            You must be in VC to gain the role. If gifting, you must own the role already and the mentioned user must be in VC.
+            Removed when you leave the VC or after an hour.
+
+            Arguments:
+                (Optional)
+                user: The user to gift the DJ role to. This can be provided as an argument of their ID, or as a mention.
+
+            Examples:
+                (Requesting) c.dj
+                (Gifting) c.dj @crunc
+            ```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="asight.help")
+    async def asight_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Allow a user to assign themselves the "asight" role for a specified amount of time.
+        HonkBonk will DM you when the role is removed.
+
+        Arguments:
+            time: The amount of time to assign the role for, in hours. Defaults to 1 hour.
+            
+        Examples:
+            c.asight time=4```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
