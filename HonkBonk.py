@@ -493,6 +493,14 @@ async def timed_loop(aBot):
                         print("member not found.")
                     try:
                         await member.remove_roles(role, reason="Temporary role end time.")
+
+                        # If the role removed is the "asight" role, DM user to let them know it's been removed.
+                        if role.id == 802630159999828009:
+                            try:
+                                await member.send("Asight role has been removed. You can now talk in the server again.")
+                            except:
+                                traceback.print_exc()
+
                     except discord.errors.Forbidden:
                         # Don't have the permissions.
                         pass
