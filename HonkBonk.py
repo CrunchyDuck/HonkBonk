@@ -97,7 +97,7 @@ class MyBot(commands.Bot):
 
     def db_read_setting(self, server_id, key, default=None):
         """Fetches all entries for a key from the settings table in the database. Returns default if no entry exists."""
-        self.cursor.execute(f"SELECT value FROM settings WHERE server={server_id} AND key={key}")
+        self.cursor.execute(f"SELECT value FROM settings WHERE server={server_id} AND key='{key}'")
         result = self.cursor.fetchall()
         if result:
             return result
@@ -498,6 +498,8 @@ async def timed_loop(aBot):
                         if role.id == 802630159999828009:
                             try:
                                 await member.send("Asight role has been removed. You can now talk in the server again.")
+                            except discord.errors.Forbidden:
+                                pass
                             except:
                                 traceback.print_exc()
 
@@ -564,7 +566,6 @@ def allgroups(matchobject):
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
 # IDEA: Add timezone functions.
-# IDEA: Allow me to ban reactions on X person's messages.
 # IDEA: Quote database.
 # IDEA: Github integration
 # IDEA: emoji only channel.
@@ -587,7 +588,6 @@ def allgroups(matchobject):
 # TODO: Make admins server based, not bot-wide.
 # TODO: Manage reactions on edited messages.
 
-# FIXME: Creating custom roles currently place the role at the top of the list, over the top of admins.
 # FIXME: Emoji pushing doesn't properly assign ownership.
 # FIXME: Clear attachments after emoji push.
 

@@ -76,8 +76,13 @@ class RoleControl(commands.Cog, name="roles"):
             can_mention = True if can_mention else False
             vanity_role = await guild.create_role(name=name, colour=col, mentionable=can_mention)
 
-            # TODO: Find a better way to determine the role position.
-            role_num = len(guild.roles) - 4
+            role_num = 1
+            vanity_role_id = self.bot.db_read_setting(ctx.guild.id, "vanity_role_reference", default=0)
+            if vanity_role_id:
+                # FIXME: Sometimes this doesn't find the role, even if it exists.
+                role_base = ctx.guild.get_role(vanity_role_id[0][0])
+                if role_base:
+                    role_num = role_base.position - 1
             await vanity_role.edit(position=role_num)
 
             # Assign role to user and update db
@@ -155,7 +160,7 @@ class RoleControl(commands.Cog, name="roles"):
             c.role.delete
         """
         if not await self.bot.has_perm(ctx, banned_users=True): return False
-        u = ctx.author
+        u = self.bot.admin_override(ctx)
 
         # Check if user has a vanity role in the database
         self.bot.cursor.execute(f"SELECT role_id FROM vanity_role WHERE id={u.id}")
@@ -379,6 +384,31 @@ class RoleControl(commands.Cog, name="roles"):
 
         self.bot.cursor.executemany("DELETE FROM temp_role WHERE rowid=?", results)
 
+    @commands.command(name=f"{prefix}.settings")
+    async def settings(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True): return
+        message = ctx.message
+        server = ctx.guild.id
+
+        fields = [["vanity_role_reference", "int", "update"]]
+        for field in fields:
+            key = field[0]
+            type = field[1]
+            method = field[2]
+            val = self.bot.get_variable(message.content, key, type=type, default="0")
+            if val == "0":
+                continue
+            if method == "update":
+                self.bot.cursor.execute("SELECT rowid FROM settings WHERE server=? AND key=?", (server, key))
+                res = self.bot.cursor.fetchone()
+                if res:
+                    self.bot.cursor.execute(f"UPDATE settings SET server=?, key=?, value=? WHERE rowid={res[0]}", (server, key, val))
+                else:
+                    self.bot.cursor.execute("INSERT INTO settings VALUES(?, ?, ?)", (server, key, val))
+            else:
+                self.bot.cursor.execute("INSERT INTO settings VALUES(?, ?, ?)", (server, key, val))
+        self.bot.cursor.execute("commit")
+
 
     @commands.command(name=f"{prefix}.apply.help")
     async def apply_role_help(self, ctx):
@@ -416,8 +446,8 @@ class RoleControl(commands.Cog, name="roles"):
             mention: A keyword that determines if a role is mentionable. If creating, this will set it to true. When modifying, toggle.
             
         Example:
-            (Creation) c.role name="total biscuit" #C070C0 mention
-            (Update) c.role name="oops i made a typo"```
+            (Creation) c.role.vanity name="total biscuit" #C070C0 mention
+            (Update) c.role.vanity name="oops i made a typo"```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
