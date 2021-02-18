@@ -383,7 +383,8 @@ class Admin(commands.Cog, name="admin"):
                       "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
                       "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
                       "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
-                      "c.asight - Allow a user to assign themselves the \"asight\" role for a specified amount of time." \
+                      "c.asight - Allow a user to assign themselves the \"asight\" role for a specified amount of time.\n" \
+                      "c.sleep - Allows a user to set a time after which they'll be removed from VC.\n" \
                       "c.speak - Makes HonkBonk say something, somewhere :).\n" \
                       "c.dm - Makes HonkBonk DM a user.\n" \
                       "c.ignore - Setting honkbonk to ignore users/channels.\n" \
