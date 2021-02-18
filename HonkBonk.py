@@ -552,6 +552,41 @@ async def timed_loop(aBot):
             traceback.print_exc()
 
 
+        # ====== sleep timer =======
+
+        try:
+            aBot.cursor.execute("SELECT rowid, * FROM sleep_timer ORDER BY end_time ASC")
+            targets = aBot.cursor.fetchall()
+            for target in targets:
+                if time_now > target[3]:
+                    rowid = target[0]
+                    server = aBot.get_guild(target[1])
+                    member = server.get_member(target[2])
+                    channel = None
+
+                    if member is None:
+                        # Member could not be found
+                        print("member not found.")
+                    try:
+                        await member.move_to(channel, reason="Sleep timer ran out.")
+                        cnl = aBot.get_channel(709702365896507475) # VC text channel.
+                        await cnl.send(f"Removed {member.name} from voice chat. Sleep tight :sleeping:")
+
+                    except discord.errors.Forbidden:
+                        # Don't have the permissions.
+                        pass
+                    except discord.errors.HTTPException:
+                        # Failed.
+                        pass
+                    aBot.cursor.execute(f"DELETE FROM sleep_timer WHERE rowid={rowid}")
+                    aBot.cursor.execute("commit")
+                else:
+                    pass
+
+        except:
+            traceback.print_exc()
+
+
 def allgroups(matchobject):
     """Returns all of the strings from a regex match object added together."""
     string = ""
