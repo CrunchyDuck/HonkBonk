@@ -352,7 +352,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             c.room.owner - Who owns a temp room?
             
             c.room.order - Orders the archive category.
-            c.room.add - Makes a channel a temporary room.
+            c.room.reopen - Reopens a previously archived temp room.
             c.room.settings - nothing lol
             ```
             """
@@ -479,7 +479,19 @@ class TempChannel(commands.Cog, name="temp_channel"):
     async def room_settings_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
-            ```Does nothing right now XD LMAO ROFL PRANKED```
+            ```Change settings related to room control.
+            Available settings:
+            
+            archive cat - Category ID of where to store closed user rooms.
+            "-1" deletes rooms. "0" or non-existent category will store rooms under no category.
+            
+            room cat - Category ID of where to store opened rooms.
+            "0" or non-existent category will store them under no category.
+            
+            default time - How long in hours user rooms are open for by default. Default = "24"
+            
+            max rooms - The maximum amount of user rooms per person. Default = "1"
+            ```
             """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)

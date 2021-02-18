@@ -7,6 +7,7 @@ discord.py==1.6.0
 idna==2.10
 multidict==5.1.0
 python-dotenv==0.15.0
+pytube==10.4.1
 requests==2.25.1
 typing-extensions==3.7.4.3
 urllib3==1.26.3
