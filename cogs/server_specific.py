@@ -15,13 +15,13 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.init_db(self.cur)
 
         self.rc_deskcheck = self.bot.Chance({
-            "565879875647438851": 150,  # pidge (discrimination)
-            "411365470109958155": 100,  # me
-            "337793807888285698": 100,  # oken
-            "431073784724848652": 100,  # baguette
-            "416630260566851584": 100,  # stas
-            "325705378769928192": 100,  # maxi
-            "630930243464462346": 100,  # pika
+            565879875647438851: 150,  # pidge (discrimination)
+            411365470109958155: 100,  # me
+            337793807888285698: 100,  # oken
+            431073784724848652: 100,  # baguette
+            416630260566851584: 100,  # stas
+            325705378769928192: 100,  # maxi
+            630930243464462346: 100,  # pika
         })
 
     @commands.command(name="dj")
@@ -213,7 +213,11 @@ class ServerSpecific(commands.Cog, name="server_specific"):
     @commands.command(name="deskcheck")
     async def deskcheck(self, ctx):
         if not await self.bot.has_perm(ctx, admin=True): return
-        await ctx.send(f"<@!{self.rc_deskcheck.get_value()}>")
+        sinner = ctx.guild.get_member(self.rc_deskcheck.get_value())
+        punishment = ctx.guild.get_role(815158018324693024)
+
+        await sinner.add_roles(punishment, reason="desk check.")
+        await ctx.send(f"{sinner.mention} You've just been DESK CHECKED! Show your TIDY DESK to ABSOLVE YOURSELF OF SIN!")
 
 
     @commands.command(name="dj.help")
