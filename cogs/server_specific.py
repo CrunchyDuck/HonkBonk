@@ -14,6 +14,16 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.cur = bot.cursor
         self.init_db(self.cur)
 
+        self.rc_deskcheck = self.bot.Chance({
+            "565879875647438851": 150,  # pidge (discrimination)
+            "411365470109958155": 100,  # me
+            "337793807888285698": 100,  # oken
+            "431073784724848652": 100,  # baguette
+            "416630260566851584": 100,  # stas
+            "325705378769928192": 100,  # maxi
+            "630930243464462346": 100,  # pika
+        })
+
     @commands.command(name="dj")
     async def dj(self, ctx):
         if not await self.bot.has_perm(ctx): return
@@ -200,6 +210,11 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             await ctx.send("Provided time must be above 0.")
             return
 
+    @commands.command(name="deskcheck")
+    async def deskcheck(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True): return
+        await ctx.send(f"<@!{self.rc_deskcheck.get_value()}>")
+
 
     @commands.command(name="dj.help")
     async def dj_help(self, ctx):
@@ -233,6 +248,17 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             
         Examples:
             c.asight time=4```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="deskcheck.help")
+    async def deskcheck_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ping a bitch ass desk boy to force them to present their desk for all to see.
+        will be slapped with the untidy desk role until proven innocent.
+        pool of those who can be desk checked has been decided by your supreme leader.
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
