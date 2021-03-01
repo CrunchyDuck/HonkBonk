@@ -52,7 +52,8 @@ class Admin(commands.Cog, name="admin"):
     async def test(self, ctx):
         """Misc code I needed to test."""
         if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
-        await ctx.message.add_reaction("<:caffeine:773749792865779743>")
+        arr = [1, 2, 3, 4]
+        print(arr[6])
 
     @commands.command(name="print")
     async def print_message(self, ctx):
@@ -261,39 +262,59 @@ class Admin(commands.Cog, name="admin"):
 
     @commands.command(name="shuffle")
     async def shuffle_word(self, ctx):
-        """```Accept in a sentence, group (size) words together, and shuffle the order.
+        """```Accept in a sentence, group (pattern) words together, and shuffle the order.
         The message to be shuffled should be on a new line after the command.
 
         Arguments:
-            size - How many words should be in each group when shuffling. Default = 2
+            pattern - A sequence of how many words to be grouped together.
+            E.G "3,1,1" will group 3 words, then 1, then 1, then loop to group 3, 1, 1, 3...
+            default = "3,1,1"
 
         Example:
             c.shuffle
             owo hewwo whats this
 
-            c.shuffle size=1
+            c.shuffle pattern="1"
             chaotic shuffling```
         """
         if not await self.bot.has_perm(ctx, dm=True): return
-        size = int(self.bot.get_variable(ctx.message.content, "size", type="int", default=2))
+        pattern = self.bot.get_variable(ctx.message.content, "pattern", type="str", default="3,1,1")
 
-        sentence = ctx.message.content.split("\n", 1)[1]  # Get text after first new line.
+        # Convert pattern into an array of integers.
+        pattern = pattern.split(",")
+        for i in range(len(pattern)):
+            try:
+                pattern[i] = int(pattern[i])
+            except:
+                await ctx.send("Patterns must be numbers separated by commands E.G 3,1,1")
+                return
+
+        # Fetch message to shuffle
+        sentence = ctx.message.content.split("\n", 1)  # Get text after first new line.
+        if len(sentence) < 2:
+            await ctx.send("Place a new line between the command and the text to shuffle.")
+            return
+        sentence = sentence[1]
+
+        # Group words of the sentence into an list.
         words = sentence.split(" ")
         word_group = ""
         words_grouped = []
         i = 0
+        j = 0
         for word in words:
             word_group += f"{word} "
             i += 1
-            if i == size:
+            if i == pattern[j % len(pattern)]:
                 words_grouped.append(word_group[:-1])
                 word_group = ""
                 i = 0
+                j += 1
         if word_group:
             words_grouped.append(word_group)
 
+        # Shuffle grouped list and send the result
         shuffle(words_grouped)
-
         sentence = ""
         for word in words_grouped:
             sentence += f"{word} "
@@ -321,17 +342,19 @@ class Admin(commands.Cog, name="admin"):
     async def shuffle_word_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
-        ```Accept in a sentence, group (size) words together, and shuffle the order.
+        ```Accept in a sentence, group (pattern) words together, and shuffle the order.
         The message to be shuffled should be on a new line after the command.
 
         Arguments:
-            size - How many words should be in each group when shuffling. Default = 2
+            pattern - A sequence of how many words to be grouped together.
+            E.G "3,1,1" will group 3 words, then 1, then 1, then loop to group 3, 1, 1, 3...
+            default = "3,1,1"
 
         Example:
             c.shuffle
             owo hewwo whats this
 
-            c.shuffle size=1
+            c.shuffle pattern="1"
             chaotic shuffling```
         """
         docstring = self.bot.remove_indentation(docstring)
@@ -444,6 +467,7 @@ class Admin(commands.Cog, name="admin"):
                       "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
                       "c.asight - Allow a user to assign themselves the \"asight\" role for a specified amount of time.\n" \
                       "c.sleep - Allows a user to set a time after which they'll be removed from VC.\n" \
+                      "c.shuffle - Shuffles a sentence." \
                       "c.speak - Makes HonkBonk say something, somewhere :).\n" \
                       "c.dm - Makes HonkBonk DM a user.\n" \
                       "c.ignore - Setting honkbonk to ignore users/channels.\n" \
