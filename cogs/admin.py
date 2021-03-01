@@ -1,9 +1,7 @@
-import datetime
 import discord
 import re
-import requests
 from discord.ext import commands
-import traceback
+from random import shuffle
 
 
 class Admin(commands.Cog, name="admin"):
@@ -261,6 +259,47 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(self.rc_dunno.get_value())
 
+    @commands.command(name="shuffle")
+    async def shuffle_word(self, ctx):
+        """```Accept in a sentence, group (size) words together, and shuffle the order.
+        The message to be shuffled should be on a new line after the command.
+
+        Arguments:
+            size - How many words should be in each group when shuffling. Default = 2
+
+        Example:
+            c.shuffle
+            owo hewwo whats this
+
+            c.shuffle size=1
+            chaotic shuffling```
+        """
+        if not await self.bot.has_perm(ctx, dm=True): return
+        size = int(self.bot.get_variable(ctx.message.content, "size", type="int", default=2))
+
+        sentence = ctx.message.content.split("\n", 1)[1]  # Get text after first new line.
+        words = sentence.split(" ")
+        word_group = ""
+        words_grouped = []
+        i = 0
+        for word in words:
+            word_group += f"{word} "
+            i += 1
+            if i == size:
+                words_grouped.append(word_group[:-1])
+                word_group = ""
+                i = 0
+        if word_group:
+            words_grouped.append(word_group)
+
+        shuffle(words_grouped)
+
+        sentence = ""
+        for word in words_grouped:
+            sentence += f"{word} "
+
+        await ctx.send(sentence)
+
 
     @commands.command(name="id.help")
     async def get_snowflake_help(self, ctx):
@@ -274,6 +313,26 @@ class Admin(commands.Cog, name="admin"):
 
         Example:
             c.id 565879875647438851```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="shuffle.help")
+    async def shuffle_word_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Accept in a sentence, group (size) words together, and shuffle the order.
+        The message to be shuffled should be on a new line after the command.
+
+        Arguments:
+            size - How many words should be in each group when shuffling. Default = 2
+
+        Example:
+            c.shuffle
+            owo hewwo whats this
+
+            c.shuffle size=1
+            chaotic shuffling```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)

@@ -161,7 +161,7 @@ class Reaction(commands.Cog, name="message_reactions"):
 
         # hotel.
         try:
-            if re.search(r"(hotel?)", msg):
+            if re.search(r"(hotel\?)", msg):
                 await message.channel.send("trivago.")
         except:
             traceback.print_exc()
