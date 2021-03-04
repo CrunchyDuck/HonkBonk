@@ -60,6 +60,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
             "<https://youtu.be/P8RHDid1th4>\nyeah im putting my mix in here what you gonna do about it xD ": 10,
         })
 
+        self.bot.timed_commands.append(self.room_timeout)
+
     @commands.command(name=f"{prefix}.open")
     async def room_open(self, ctx):
         """
@@ -336,6 +338,28 @@ class TempChannel(commands.Cog, name="temp_channel"):
         user = self.bot.get_user(result["user_id"])
         await ctx.send(f"{channel.mention} is owned by {user.name}")
 
+    # Timed functions
+    async def room_timeout(self, time_now):
+        # Need to find a way to index these dynamically.
+        guild_id = 704361803953733693
+        archive_category = 774303846478250054
+
+        self.bot.cursor.execute("SELECT * FROM temp_room ORDER BY end_time ASC")
+        targets = self.bot.cursor.fetchall()
+        for target in targets:
+            if time_now > target[2]:  # If we've passed the time this is supposed to terminate.
+                guild = self.bot.get_guild(guild_id)
+                TextChannel = guild.get_channel(target[1])
+                try:
+                    await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
+                    await TextChannel.send("Archiving channel...")
+                except: pass  # If room was deleted or HB doesn't have the power to modify.
+
+                self.bot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (target[1],))
+                self.bot.cursor.execute("commit")
+            else:
+                break
+
 
     @commands.command(name=f"{prefix}.help")
     async def room_help(self, ctx):
@@ -561,6 +585,8 @@ class TempChannel(commands.Cog, name="temp_channel"):
         cursor = self.bot.cursor
         
         cursor.execute("begin")
+        # TODO: Update the database to include other information about the temp room,
+        #  particularly the server it's from (how did I forget this)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS temp_room ("  # An entry is created for each change that is detected.
             "id INTEGER,"  # ID of the user

@@ -49,7 +49,9 @@ class MyBot(commands.Bot):
     def __init__(self, bot_prefix, intents=None):
         super().__init__(bot_prefix, intents=intents)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
-        self.active_cogs = ["emoji", "admin", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel", "server_specific"]
+        self.active_cogs = ["emoji", "admin", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
+                            "server_specific", "pidge_water_plant"]  # It says it can't find pidge_water_plant, it's lying.
+        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
 
         self.crunchyduck = myID  # Sometimes it's useful to know who your owner is :)
 
@@ -89,11 +91,6 @@ class MyBot(commands.Bot):
             "server INTEGER,"  # The server this setting is specific to.
             "key STRING,"  # The name of the setting.
             "value STRING"  # The value this setting stores.
-            ")")
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS harass_pidge ("  # An entry is created for each change that is detected.
-            "message_id INTEGER,"  # ID of the message to respond to reactions to.
-            "next_time INTEGER"  # The unix epoch time that this room should be closed at.
             ")")
         cursor.execute("commit")
 
@@ -451,6 +448,11 @@ class MyBot(commands.Bot):
 async def timed_loop(aBot):
     """
     A loop that polls regularly. Designed to do scheduled functions and run in an async loop with the main bot.
+
+    The structure of a timed command is pretty simple:
+        async def command_name(time_now):
+            # code here
+
     Arguments:
         aBot: The bot to run the functions on.
     """
@@ -459,183 +461,11 @@ async def timed_loop(aBot):
         await asyncio.sleep(loop_ticks)
         time_now = aBot.time_now()  # Current Unix Epoch time.
 
-        # For now I'm manually putting all blocks of code that need to be time in here.
-        # I wish to figure out a more automatic process in the future, similar to discord cogs.
-
-        # ======= temp_channel.py =======
-        try:
-            # Need to find a way to index these dynamically.
-            guild_id = 704361803953733693
-            archive_category = 774303846478250054
-
-            aBot.cursor.execute("SELECT * FROM temp_room ORDER BY end_time ASC")
-            targets = aBot.cursor.fetchall()
-            for target in targets:
-                if time_now > target[2]:  # If we've passed the time this is supposed to terminate.
-                    guild = aBot.get_guild(guild_id)
-                    TextChannel = guild.get_channel(target[1])
-                    try:
-                        await TextChannel.edit(category=guild.get_channel(archive_category), sync_permissions=True, position=len(guild.channels))
-                        await TextChannel.send("Archiving channel...")
-                    except: pass
-
-                    aBot.cursor.execute("DELETE FROM temp_room WHERE room_id=?", (target[1],))
-                    aBot.cursor.execute("commit")
-                else:
-                    break
-        except:
-            traceback.print_exc()
-
-        # ======= Temp role =======
-        try:
-            aBot.cursor.execute("SELECT rowid, * FROM temp_role ORDER BY end_time ASC")
-            targets = aBot.cursor.fetchall()
-            for target in targets:
-                if time_now > target[3]:
-                    rowid = target[0]
-                    server = aBot.get_guild(target[1])
-                    member = server.get_member(target[2])
-                    role = discord.Object(target[4])
-
-                    if member is None:
-                        # Member could not be found
-                        print("member not found.")
-                    try:
-                        await member.remove_roles(role, reason="Temporary role end time.")
-
-                        # If the role removed is the "asight" role, DM user to let them know it's been removed.
-                        if role.id == 802630159999828009:
-                            try:
-                                await member.send("Asight role has been removed. You can now talk in the server again.")
-                            except discord.errors.Forbidden:
-                                pass
-                            except:
-                                traceback.print_exc()
-
-                    except discord.errors.Forbidden:
-                        # Don't have the permissions.
-                        pass
-                    except discord.errors.HTTPException:
-                        # Failed.
-                        pass
-                    aBot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={rowid}")
-                    aBot.cursor.execute("commit")
-                else:
-                    break
-
-                    # Send message in logging channel about the role being removed.
-        except:
-            traceback.print_exc()
-
-
-        # ======= dj role =======
-        try:
-            aBot.cursor.execute("SELECT * FROM dj_temp")
-            res = aBot.cursor.fetchone()  # there should only ever be one in here. i hope.
-            if res:
-                if time_now > res[1]:
-                    server = aBot.get_guild(704361803953733693)
-                    member = server.get_member(res[0])
-                    dj = server.get_role(804454276772266034)  # hope this works.
-
-                    try:
-                        await member.remove_roles(dj, reason="Temporary role end time.")
-                    except discord.errors.Forbidden:
-                        # Don't have the permissions.
-                        pass
-                    except discord.errors.HTTPException:
-                        # Failed.
-                        pass
-                    aBot.cursor.execute(f"DELETE FROM dj_temp")  # clear that dummy thicc list.
-                    aBot.cursor.execute("commit")
-
-                    try:
-                        cnl = aBot.get_channel(802620220832481315)
-                        await cnl.send(f"Removed dj role from {member.name} (Role timeout)")
-                    except:
-                        traceback.print_exc()
-                else:
-                    pass
-                    # TODO: Send message in logging channel about the role being removed.
-        except:
-            traceback.print_exc()
-
-
-        # ====== sleep timer =======
-        try:
-            aBot.cursor.execute("SELECT rowid, * FROM sleep_timer ORDER BY end_time ASC")
-            targets = aBot.cursor.fetchall()
-            for target in targets:
-                if time_now > target[3]:
-                    rowid = target[0]
-                    server = aBot.get_guild(target[1])
-                    member = server.get_member(target[2])
-                    channel = None
-
-                    if member is None:
-                        # Member could not be found
-                        print("member not found.")
-                    try:
-                        await member.move_to(channel, reason="Sleep timer ran out.")
-                        cnl = aBot.get_channel(709702365896507475) # VC text channel.
-                        await cnl.send(f"Removed {member.name} from voice chat. Sleep tight :sleeping:")
-
-                    except discord.errors.Forbidden:
-                        # Don't have the permissions.
-                        pass
-                    except discord.errors.HTTPException:
-                        # Failed.
-                        pass
-                    aBot.cursor.execute(f"DELETE FROM sleep_timer WHERE rowid={rowid}")
-                    aBot.cursor.execute("commit")
-                else:
-                    pass
-
-        except:
-            traceback.print_exc()
-
-
-        # ===== make pidge water plant ======
-        try:
-            aBot.cursor.execute("SELECT rowid, * FROM harass_pidge")
-            target = aBot.cursor.fetchone()
-            if target:
-                if time_now > target[2]:
-                    user = aBot.get_guild(704361803953733693).get_member(565879875647438851)  # pidge
-
-                    opening = aBot.Chance({
-                        "water your plant.\ndone?": 1,
-                        "is herbert wet?": 1,
-                        "wetten herbert.": 1,
-                        "plant thirsty": 1,
-                        "feed your plant~": 1,
-                    })
-                    remind = aBot.Chance({
-                        "hello again. feed herbert.": 1,
-                        "procrastinator.": 1,
-                        "busy, i hope.": 1,
-                        "i'll tell duck.": 1,
-                        "knock knock. feed plant.": 1,
-                        "<https://www.youtube.com/watch?v=DzfxSQRuheY>": 1,
-                    })
-
-                    if target[1] == 0:
-                        message_content = opening.get_value()
-                    else:
-                        message_content = remind.get_value()
-
-                    if user.status != discord.Status.offline:  # Don't want to bother him if he's at school/sleeping.
-                        message = await user.send(message_content)
-                        await message.add_reaction("✅")
-                        await message.add_reaction("❌")
-
-                        aBot.cursor.execute("DELETE FROM harass_pidge")
-                        aBot.cursor.execute("commit")
-                        aBot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [message.id, aBot.hours_from_now(0.5)])
-                        aBot.cursor.execute("commit")
-
-        except:
-            traceback.print_exc()
+        for command in aBot.timed_commands:
+            try:
+                await command(time_now)
+            except:
+                traceback.print_exc()
 
 
 def allgroups(matchobject):

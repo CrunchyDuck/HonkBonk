@@ -14,6 +14,7 @@ class RoleControl(commands.Cog, name="roles"):
 
     def __init__(self, bot):
         self.bot = bot
+        self.bot.timed_commands.append(self.timed_role_end)
         self.init_db(bot.cursor)
 
     # TODO: Allow only special users to access this/people who already have vanity roles.
@@ -408,6 +409,43 @@ class RoleControl(commands.Cog, name="roles"):
             else:
                 self.bot.cursor.execute("INSERT INTO settings VALUES(?, ?, ?)", (server, key, val))
         self.bot.cursor.execute("commit")
+
+    # Timed functions
+    async def timed_role_end(self, time_now):
+        self.bot.cursor.execute("SELECT rowid, * FROM temp_role ORDER BY end_time ASC")
+        targets = self.bot.cursor.fetchall()
+        for target in targets:
+            if time_now > target[3]:
+                rowid = target[0]
+                server = self.bot.get_guild(target[1])
+                member = server.get_member(target[2])
+                role = discord.Object(target[4])
+
+                if member is None:
+                    # Member could not be found
+                    print("member not found.")
+                try:
+                    await member.remove_roles(role, reason="Temporary role end time.")
+
+                    # If the role removed is the "asight" role, DM user to let them know it's been removed.
+                    if role.id == 802630159999828009:
+                        try:
+                            await member.send(f"Asight role has been removed. You can now talk in {server} again.")
+                        except discord.errors.Forbidden:
+                            pass
+                        except:
+                            traceback.print_exc()
+
+                except discord.errors.Forbidden:
+                    # Don't have the permissions.
+                    pass
+                except discord.errors.HTTPException:
+                    # Failed.
+                    pass
+                self.bot.cursor.execute(f"DELETE FROM temp_role WHERE rowid={rowid}")
+                self.bot.cursor.execute("commit")
+            else:
+                break
 
 
     @commands.command(name=f"{prefix}.apply.help")

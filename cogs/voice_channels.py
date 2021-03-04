@@ -16,6 +16,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     def __init__(self, bot):
         self.bot = bot
+        self.init_db(self.bot.cursor)
+        self.bot.timed_commands.append(self.sleep_timer_up)
 
     @commands.command(name=f"{prefix}.join")
     async def join_voice_channel(self, ctx):
@@ -96,7 +98,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
-    @commands.command(name=f"sleep")
+    @commands.command(name="sleep")
     async def sleep_timer(self, ctx):
         if not await self.bot.has_perm(ctx): return False
         """
@@ -153,6 +155,36 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             self.bot.cursor.execute("commit")
         except:
             pass
+
+    # Timed function
+    async def sleep_timer_up(self, time_now):
+        self.bot.cursor.execute("SELECT rowid, * FROM sleep_timer ORDER BY end_time ASC")
+        targets = self.bot.cursor.fetchall()
+        for target in targets:
+            if time_now > target[3]:
+                rowid = target[0]
+                server = self.bot.get_guild(target[1])
+                member = server.get_member(target[2])
+                channel = None
+
+                if member is None:
+                    # Member could not be found
+                    print("member not found.")
+                try:
+                    await member.move_to(channel, reason="Sleep timer ran out.")
+                    cnl = self.bot.get_channel(709702365896507475) # VC text channel.
+                    await cnl.send(f"Removed {member.name} from voice chat. Sleep tight :sleeping:")
+
+                except discord.errors.Forbidden:
+                    # Don't have the permissions.
+                    pass
+                except discord.errors.HTTPException:
+                    # Failed.
+                    pass
+                self.bot.cursor.execute(f"DELETE FROM sleep_timer WHERE rowid={rowid}")
+                self.bot.cursor.execute("commit")
+            else:
+                break
 
     def init_db(self, cursor):
         cursor.execute("begin")

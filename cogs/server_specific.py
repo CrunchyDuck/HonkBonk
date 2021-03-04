@@ -14,6 +14,8 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.cur = bot.cursor
         self.init_db(self.cur)
 
+        self.bot.timed_commands.append(self.dj_end)
+
         self.rc_deskcheck = self.bot.Chance({
             565879875647438851: 150,  # pidge (discrimination)
             411365470109958155: 100,  # me
@@ -218,6 +220,33 @@ class ServerSpecific(commands.Cog, name="server_specific"):
 
         await sinner.add_roles(punishment, reason="desk check.")
         await ctx.send(f"{sinner.mention} You've just been DESK CHECKED! Show your TIDY DESK to ABSOLVE YOURSELF OF SIN!")
+
+    # Timed function
+    async def dj_end(self, time_now):
+        self.bot.cursor.execute("SELECT * FROM dj_temp")
+        res = self.bot.cursor.fetchone()  # there should only ever be one in here. i hope.
+        if res:
+            if time_now > res[1]:
+                server = self.bot.get_guild(704361803953733693)
+                member = server.get_member(res[0])
+                dj = server.get_role(804454276772266034)  # hope this works.
+
+                try:
+                    await member.remove_roles(dj, reason="Temporary role end time.")
+                except discord.errors.Forbidden:
+                    # Don't have the permissions.
+                    pass
+                except discord.errors.HTTPException:
+                    # Failed.
+                    pass
+                self.bot.cursor.execute(f"DELETE FROM dj_temp")  # clear that dummy thicc list.
+                self.bot.cursor.execute("commit")
+
+                cnl = self.bot.get_channel(802620220832481315)
+                await cnl.send(f"Removed dj role from {member.name} (Role timeout)")
+            else:
+                pass
+                # TODO: Send message in logging channel about the role being removed.
 
 
     @commands.command(name="dj.help")
