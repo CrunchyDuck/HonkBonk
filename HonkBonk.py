@@ -601,11 +601,11 @@ async def timed_loop(aBot):
             target = aBot.cursor.fetchone()
             if target:
                 if time_now > target[2]:
-                    user = aBot.get_guild(704361803953733693).get_member(565879875647438851)  # me
+                    user = aBot.get_guild(704361803953733693).get_member(565879875647438851)  # pidge
 
                     opening = aBot.Chance({
                         "water your plant.\ndone?": 1,
-                        "is herbert wet.": 1,
+                        "is herbert wet?": 1,
                         "wetten herbert.": 1,
                         "plant thirsty": 1,
                         "feed your plant~": 1,
@@ -615,6 +615,8 @@ async def timed_loop(aBot):
                         "procrastinator.": 1,
                         "busy, i hope.": 1,
                         "i'll tell duck.": 1,
+                        "knock knock. feed plant.": 1,
+                        "<https://www.youtube.com/watch?v=DzfxSQRuheY>": 1,
                     })
 
                     if target[1] == 0:
@@ -631,7 +633,6 @@ async def timed_loop(aBot):
                         aBot.cursor.execute("commit")
                         aBot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [message.id, aBot.hours_from_now(0.5)])
                         aBot.cursor.execute("commit")
-
 
         except:
             traceback.print_exc()

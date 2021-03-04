@@ -365,6 +365,7 @@ class Admin(commands.Cog, name="admin"):
                 "duck will fly over": 1,
             })
             await self.bot.get_user(565879875647438851).send(delay.get_value())
+            return
 
         elif str(payload.emoji) == "✅":
             self.bot.cursor.execute("DELETE FROM harass_pidge")
@@ -387,6 +388,7 @@ class Admin(commands.Cog, name="admin"):
                 "best boy": 1,
             })
             await self.bot.get_user(565879875647438851).send(praise.get_value())
+            return
 
 
     @commands.command(name="id.help")
