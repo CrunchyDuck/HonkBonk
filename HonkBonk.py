@@ -90,6 +90,11 @@ class MyBot(commands.Bot):
             "key STRING,"  # The name of the setting.
             "value STRING"  # The value this setting stores.
             ")")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS harass_pidge ("  # An entry is created for each change that is detected.
+            "message_id INTEGER,"  # ID of the message to respond to reactions to.
+            "next_time INTEGER"  # The unix epoch time that this room should be closed at.
+            ")")
         cursor.execute("commit")
 
         # Setting keys:
@@ -340,6 +345,10 @@ class MyBot(commands.Bot):
         indentation_amount = indentation_amount.group(1)
         return re.sub(indentation_amount, "", string)
 
+    @staticmethod
+    def time_now():
+        return time.mktime(datetime.now().timetuple())  # Current Unix Epoch time.
+
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.
         # TODO: Add command to check the chance x amount of weight has in the current index.
@@ -448,7 +457,7 @@ async def timed_loop(aBot):
     loop_ticks = 5  # How regularly, in seconds, the loop is run.
     while True:
         await asyncio.sleep(loop_ticks)
-        time_now = time.mktime(datetime.now().timetuple())  # Current Unix Epoch time.
+        time_now = aBot.time_now()  # Current Unix Epoch time.
 
         # For now I'm manually putting all blocks of code that need to be time in here.
         # I wish to figure out a more automatic process in the future, similar to discord cogs.
@@ -553,7 +562,6 @@ async def timed_loop(aBot):
 
 
         # ====== sleep timer =======
-
         try:
             aBot.cursor.execute("SELECT rowid, * FROM sleep_timer ORDER BY end_time ASC")
             targets = aBot.cursor.fetchall()
@@ -582,6 +590,48 @@ async def timed_loop(aBot):
                     aBot.cursor.execute("commit")
                 else:
                     pass
+
+        except:
+            traceback.print_exc()
+
+
+        # ===== make pidge water plant ======
+        try:
+            aBot.cursor.execute("SELECT rowid, * FROM harass_pidge")
+            target = aBot.cursor.fetchone()
+            if target:
+                if time_now > target[2]:
+                    user = aBot.get_guild(704361803953733693).get_member(565879875647438851)  # me
+
+                    opening = aBot.Chance({
+                        "water your plant.\ndone?": 1,
+                        "is herbert wet.": 1,
+                        "wetten herbert.": 1,
+                        "plant thirsty": 1,
+                        "feed your plant~": 1,
+                    })
+                    remind = aBot.Chance({
+                        "hello again. feed herbert.": 1,
+                        "procrastinator.": 1,
+                        "busy, i hope.": 1,
+                        "i'll tell duck.": 1,
+                    })
+
+                    if target[1] == 0:
+                        message_content = opening.get_value()
+                    else:
+                        message_content = remind.get_value()
+
+                    if user.status != discord.Status.offline:  # Don't want to bother him if he's at school/sleeping.
+                        message = await user.send(message_content)
+                        await message.add_reaction("✅")
+                        await message.add_reaction("❌")
+
+                        aBot.cursor.execute("DELETE FROM harass_pidge")
+                        aBot.cursor.execute("commit")
+                        aBot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [message.id, aBot.hours_from_now(0.5)])
+                        aBot.cursor.execute("commit")
+
 
         except:
             traceback.print_exc()

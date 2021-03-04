@@ -52,8 +52,9 @@ class Admin(commands.Cog, name="admin"):
     async def test(self, ctx):
         """Misc code I needed to test."""
         if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
-        arr = [1, 2, 3, 4]
-        print(arr[6])
+        one_day_seconds = 86400
+        time_through_day = self.bot.time_now() % one_day_seconds
+        print(time_through_day / 60)
 
     @commands.command(name="print")
     async def print_message(self, ctx):
@@ -320,6 +321,72 @@ class Admin(commands.Cog, name="admin"):
             sentence += f"{word} "
 
         await ctx.send(sentence)
+
+
+    @commands.command(name="pidge")
+    async def harass_pidge(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True, dm=True): return
+        time = float(self.bot.get_variable(ctx.message.content, "time", type="float"))  # Provided as hours.
+        #end_time = self.bot.hours_from_now(duration)
+
+        self.bot.cursor.execute("DELETE FROM harass_pidge")
+        self.bot.cursor.execute("commit")
+
+        self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?, ?)", [0, time])
+        self.bot.cursor.execute("commit")
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        cur = self.bot.cursor
+        try:
+            cur.execute("SELECT * FROM harass_pidge")
+            r = cur.fetchone()
+            m_id = r[0]
+            time = r[1]
+        except:
+            return
+
+        if payload.message_id != m_id:
+            return
+        if payload.user_id == self.bot.user.id:
+            return
+
+        if str(payload.emoji) == "❌":
+            self.bot.cursor.execute("DELETE FROM harass_pidge")
+            self.bot.cursor.execute("commit")
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message.id, self.bot.hours_from_now(3)])
+            self.bot.cursor.execute("commit")
+
+            delay = self.bot.Chance({
+                "soon.": 1,
+                "i will be watching.": 1,
+                "hmmmmm": 1,
+                "busy boy": 1,
+                "duck will fly over": 1,
+            })
+            await self.bot.get_user(565879875647438851).send(delay.get_value())
+
+        elif str(payload.emoji) == "✅":
+            self.bot.cursor.execute("DELETE FROM harass_pidge")
+            self.bot.cursor.execute("commit")
+
+            one_day_seconds = 86400
+            now = self.bot.time_now()
+            time_through_day = now % one_day_seconds
+            start_of_day = now - time_through_day
+            message_time = start_of_day + (8 * 60 * 60) + (72 * 60 * 60)  # 8AM + 3 days
+
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [0, self.bot.hours_from_now(message_time)])
+            self.bot.cursor.execute("commit")
+
+            praise = self.bot.Chance({
+                "good boy~": 1,
+                "*pats*": 1,
+                "herbert is thankful": 1,
+                "<3": 1,
+                "best boy": 1,
+            })
+            await self.bot.get_user(565879875647438851).send(praise.get_value())
 
 
     @commands.command(name="id.help")
