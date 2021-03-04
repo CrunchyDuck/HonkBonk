@@ -2,7 +2,7 @@ import discord
 import re
 from discord.ext import commands
 from random import shuffle
-
+import traceback
 
 class Admin(commands.Cog, name="admin"):
     """Admin commands. Mostly just fun things for me to toy with, sometimes test, rarely useful."""
@@ -481,6 +481,26 @@ class Admin(commands.Cog, name="admin"):
         """Give Honk some appreciation in the form of a pat. Good bot."""
         if not await self.bot.has_perm(ctx, dm=True): return
         await ctx.send("UwU")
+
+    @commands.command(name="kick")
+    async def selfkick(self, ctx):
+        """Allows the user to kick themselves from the server for fun."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+
+        user = self.bot.admin_override(ctx)
+        guild = ctx.guild
+
+        # If user is the server owner:
+        if user.id == 411365470109958155:
+            await user.send("Nice try.")
+            return
+
+        # DM the user and then kick them.
+        try:
+            await user.send("You kicked yourself from the server! Good job. \nHere's the invite link to get back: https://discord.gg/eW4CpfJ")
+            await guild.kick(user)
+        except:
+            traceback.print_exc()
 
 
 def setup(bot):
