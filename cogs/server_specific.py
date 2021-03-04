@@ -314,6 +314,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         try:
             await member.remove_roles(dj, reason="DJ user left VC")
             self.cur.execute("DELETE FROM dj_temp")
+            self.cur.excute("commit")
             cnl = self.bot.get_channel(802620220832481315)
             await cnl.send(f"Removed dj role from {member.name} (User left channel)")
         except:
