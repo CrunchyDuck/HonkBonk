@@ -96,6 +96,12 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.db_init()
         self.refresh_database()
 
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.bot.core_help_text["too lazy to categorize"] +=\
+          [f"{self.prefix}.{command}" for command in
+           sorted(["chance", "list", "remove", "add"])] + ["\n"]
+        self.bot.core_help_text["admins owonly"] += [f"{self.prefix}.triggered", "\n"]
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if not await self.bot.has_perm(message, message_on_fail=False): return

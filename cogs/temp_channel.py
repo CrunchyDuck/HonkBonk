@@ -62,6 +62,12 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
         self.bot.timed_commands.append(self.room_timeout)
 
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.bot.core_help_text["too lazy to categorize"] +=\
+            [f"{self.prefix}.{command}" for command in
+             sorted(["close", "time", "owner", "open", "reopen"])] + ["\n"]
+        self.bot.core_help_text["admins owonly"] += [f"{self.prefix}.order", f"{self.prefix}.settings"]
+
     @commands.command(name=f"{prefix}.open")
     async def room_open(self, ctx):
         """

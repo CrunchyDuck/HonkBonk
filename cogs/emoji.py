@@ -17,6 +17,11 @@ class Emoji(commands.Cog, name="emoji"):
         self.bot = bot
         self.init_database(bot.cursor)
 
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.bot.core_help_text["too lazy to categorize"] +=\
+            [f"{self.prefix}.{command}" for command in
+             sorted(["push", "pop", "owner", "info"])] + ["\n"]
+
     @commands.command(name=f"{prefix}.push")
     async def emoji_push(self, ctx):
         """

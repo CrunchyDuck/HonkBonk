@@ -49,9 +49,19 @@ class MyBot(commands.Bot):
     def __init__(self, bot_prefix, intents=None):
         super().__init__(bot_prefix, intents=intents)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
-        self.active_cogs = ["emoji", "admin", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
-                            "server_specific", "pidge_water_plant"]  # It says it can't find pidge_water_plant, it's lying.
+        self.active_cogs = ["admin", "emoji", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
+                            "server_specific", "pidge_water_plant",
+                            "random_e_tag"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+
+        # This relies on dictionaries maintaining their declared order, rather than taking their hash order.
+        # This is only possible as of python 3.6
+        self.core_help_text = {
+            "modules": [],
+            "too lazy to categorize": [],
+            "admins owonly": [],
+            "sfw commands": [],
+            }
 
         self.crunchyduck = myID  # Sometimes it's useful to know who your owner is :)
 
@@ -230,7 +240,6 @@ class MyBot(commands.Bot):
 
         return_dict = {"rowid": result[0], "user_id": result[1], "room_id": result[2], "end_time": result[3]}
         return return_dict
-
 
     def admin_override(self, ctx):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
@@ -522,7 +531,6 @@ logger.addHandler(handler)
 # TODO: Learn how this works so I can use this in other code things I do, hotswitching modules is really cool.
 for cog in bot.active_cogs:
     bot.load_extension(f"cogs.{cog}")
-bot.load_extension(f"cogs.help")  # This has to be loaded after all of the others, such that all other cogs load before.
 
 
 @bot.event

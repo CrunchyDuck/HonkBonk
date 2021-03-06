@@ -17,6 +17,11 @@ class RoleControl(commands.Cog, name="roles"):
         self.bot.timed_commands.append(self.timed_role_end)
         self.init_db(bot.cursor)
 
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.bot.core_help_text["too lazy to categorize"] +=\
+            [f"{self.prefix}.{command}" for command in
+             sorted(["vanity", "delete", "info", "apply", "remove"])] + ["\n"]
+
     # TODO: Allow only special users to access this/people who already have vanity roles.
     @commands.command(name=f"{prefix}.vanity")
     async def colour_role(self, ctx):

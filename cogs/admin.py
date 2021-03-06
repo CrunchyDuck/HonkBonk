@@ -6,7 +6,6 @@ import traceback
 
 class Admin(commands.Cog, name="admin"):
     """Admin commands. Mostly just fun things for me to toy with, sometimes test, rarely useful."""
-
     def __init__(self, bot):
         self.bot = bot
         self.cur = bot.cursor
@@ -24,6 +23,9 @@ class Admin(commands.Cog, name="admin"):
             "a dinnae ken": 100,
             "dunno": 100
         })
+
+        self.bot.core_help_text["admins owonly"] += sorted(["dm", "speak", "ignore", "ignore.none", "ignore.all"]) + ["\n"]
+        self.bot.core_help_text["too lazy to categorize"] += sorted(["timestamp", "id", "shuffle", "pat", "kick"]) + ["\n"]
 
     @commands.command(name=f"timestamp")
     async def timestamp(self, ctx):
@@ -322,6 +324,33 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(sentence)
 
+    @commands.command(name="pat")
+    async def pat(self, ctx):
+        """Give Honk some appreciation in the form of a pat. Good bot."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+        await ctx.send("UwU")
+
+    @commands.command(name="kick")
+    async def selfkick(self, ctx):
+        """Allows the user to kick themselves from the server for fun."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+
+        user = self.bot.admin_override(ctx)
+        guild = ctx.guild
+
+        # If user is the server owner:
+        if user.id == 411365470109958155:
+            await user.send("Nice try.")
+            return
+
+        # DM the user and then kick them.
+        try:
+            await user.send(
+                "You kicked yourself from the server! Good job. \nHere's the invite link to get back: https://discord.gg/eW4CpfJ")
+            await guild.kick(user, reason="self kick c.kick :)")
+        except:
+            traceback.print_exc()
+
 
     @commands.command(name="id.help")
     async def get_snowflake_help(self, ctx):
@@ -451,6 +480,15 @@ class Admin(commands.Cog, name="admin"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
+    @commands.command(name="pat.help")
+    async def pat_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```:)```
+            """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
     @commands.command(name="help")
     async def core_help(self, ctx):
         """The core help command."""
@@ -475,32 +513,6 @@ class Admin(commands.Cog, name="admin"):
                       "c.ignore.list - A list of ignored channels and users.\n" \
                       "c.ignore.none - Stops ignoring all users and channels.```"
         await ctx.send(help_string)
-
-    @commands.command(name="pat")
-    async def pat(self, ctx):
-        """Give Honk some appreciation in the form of a pat. Good bot."""
-        if not await self.bot.has_perm(ctx, dm=True): return
-        await ctx.send("UwU")
-
-    @commands.command(name="kick")
-    async def selfkick(self, ctx):
-        """Allows the user to kick themselves from the server for fun."""
-        if not await self.bot.has_perm(ctx, dm=True): return
-
-        user = self.bot.admin_override(ctx)
-        guild = ctx.guild
-
-        # If user is the server owner:
-        if user.id == 411365470109958155:
-            await user.send("Nice try.")
-            return
-
-        # DM the user and then kick them.
-        try:
-            await user.send("You kicked yourself from the server! Good job. \nHere's the invite link to get back: https://discord.gg/eW4CpfJ")
-            await guild.kick(user)
-        except:
-            traceback.print_exc()
 
 
 def setup(bot):
