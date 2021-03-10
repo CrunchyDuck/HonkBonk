@@ -26,8 +26,8 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             630930243464462346: 100,  # pika
         })
 
-        self.bot.core_help_text["too lazy to categorize"] += ["asight", "dj", "\n"]
-        self.bot.core_help_text["admins owonly"] += ["deskcheck", "\n"]
+        self.bot.core_help_text["General"] += ["asight", "dj"]
+        self.bot.core_help_text["Admins OwOnly"] += ["deskcheck"]
 
     @commands.command(name="dj")
     async def dj(self, ctx):

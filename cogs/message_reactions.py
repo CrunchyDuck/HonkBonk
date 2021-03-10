@@ -97,10 +97,10 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.refresh_database()
 
         self.bot.core_help_text["modules"] += [self.prefix]
-        self.bot.core_help_text["too lazy to categorize"] +=\
-          [f"{self.prefix}.{command}" for command in
-           sorted(["chance", "list", "remove", "add"])] + ["\n"]
-        self.bot.core_help_text["admins owonly"] += [f"{self.prefix}.triggered", "\n"]
+        self.help_text = {
+          "General": [f"{self.prefix}.{command}" for command in ["chance", "list", "remove", "add"]],
+          "admin boys only": [f"{self.prefix}.triggered"]
+        }
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -463,18 +463,21 @@ class Reaction(commands.Cog, name="message_reactions"):
     @commands.command(name=f"{prefix}.help")
     async def reaction_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        docstring="""
-        ```This module allows honkbonk to react to messages with emotes.
-        Will not react to messages with URLs in them. Will not react in ignored rooms.
-        Maximum reactions per person can be seen in c.react.list. Admins bypass this.
-        
-        c.react.chance - Get chances of specifically the built in "furry" reaction
-        c.react.add - Add a custom reaction!
-        c.react.remove - Remove a custom reaction!
-        c.react.list - Display your custom reactions!
-        c.react.triggered - Change how many times a reaction has been triggered. Admin thingy.```
-        """
-        await ctx.send(docstring)
+        # docstring="""
+        # ```This module allows honkbonk to react to messages with emotes.
+        # Will not react to messages with URLs in them. Will not react in ignored rooms.
+        # Maximum reactions per person can be seen in c.react.list. Admins bypass this.
+        #
+        # c.react.chance - Get chances of specifically the built in "furry" reaction
+        # c.react.add - Add a custom reaction!
+        # c.react.remove - Remove a custom reaction!
+        # c.react.list - Display your custom reactions!
+        # c.react.triggered - Change how many times a reaction has been triggered. Admin thingy.```
+        # """
+        # await ctx.send(docstring)
+        desc = "This module allows honkbonk to react to messages with emotes.\n"\
+               "Will not react to messages with URLs in them."
+        await ctx.send(embed=self.bot.create_help(self.help_text, desc))
 
     # TODO: Command that removes reactions on the last message the user sent. So I can go "gr" at HB going "owo" and he runs away.
     

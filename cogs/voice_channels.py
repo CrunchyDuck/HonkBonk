@@ -19,6 +19,12 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.sleep_timer_up)
 
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.help_text = {
+            "General": ["vc.sleep"],
+            "AAAAAdmins": [f"{self.prefix}.{command}" for command in ["join", "leave"]],
+        }
+
     @commands.command(name=f"{prefix}.join")
     async def join_voice_channel(self, ctx):
         """Join the VC channel the user is currently in."""
@@ -47,12 +53,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(name=f"{prefix}.help")
     async def vc_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        docstring = """
-        ```c.vc.join - Join your channel
-        c.vc.leave - Leave currently joined channel```
-        """
-        docstring = self.bot.remove_indentation(docstring)
-        await ctx.send(docstring)
+        # docstring = """
+        # ```c.vc.join - Join your channel
+        # c.vc.leave - Leave currently joined channel```
+        # """
+        # docstring = self.bot.remove_indentation(docstring)
+        # await ctx.send(docstring)
+        await ctx.send(embed=self.bot.create_help(self.help_text))
 
     @commands.command(name=f"{prefix}.join.help")
     async def join_help(self, ctx):

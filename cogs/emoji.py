@@ -18,9 +18,9 @@ class Emoji(commands.Cog, name="emoji"):
         self.init_database(bot.cursor)
 
         self.bot.core_help_text["modules"] += [self.prefix]
-        self.bot.core_help_text["too lazy to categorize"] +=\
-            [f"{self.prefix}.{command}" for command in
-             sorted(["push", "pop", "owner", "info"])] + ["\n"]
+        self.help_text = {
+            "Commands": [f"{self.prefix}.{command}" for command in ["push", "pop", "owner", "info"]]
+        }
 
     @commands.command(name=f"{prefix}.push")
     async def emoji_push(self, ctx):
@@ -247,16 +247,18 @@ class Emoji(commands.Cog, name="emoji"):
     @commands.command(name=f"{prefix}.help")
     async def emoji_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        docstring = """
-        ```This module handles adding and removing emoji from the server
-        
-        c.emoji.push - Add an emoji.
-        c.emoji.pop - Remove an emoji.
-        c.emoji.owner - Transfer ownership of an emoji.
-        c.emoji.info - Provides information about a given emoji in this server, or slots left.```
-        """
-        docstring = self.bot.remove_indentation(docstring)
-        await ctx.send(docstring)
+        # docstring = """
+        # ```This module handles adding and removing emoji from the server
+        #
+        # c.emoji.push - Add an emoji.
+        # c.emoji.pop - Remove an emoji.
+        # c.emoji.owner - Transfer ownership of an emoji.
+        # c.emoji.info - Provides information about a given emoji in this server, or slots left.```
+        # """
+        # docstring = self.bot.remove_indentation(docstring)
+        # await ctx.send(docstring)
+        desc = "This module handles adding and removing emoji from the server"
+        await ctx.send(embed=self.bot.create_help(self.help_text, desc))
 
     @commands.command(name=f"{prefix}.push.help")
     async def emoji_push_help(self, ctx):

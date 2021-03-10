@@ -8,6 +8,8 @@ class herbert_live(commands.Cog, name="harass_pidge"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.water_plant_time)
 
+        self.bot.core_help_text["Admins OwOnly"] += ["pidge"]
+
     @commands.command(name="pidge")
     async def harass_pidge(self, ctx):
         if not await self.bot.has_perm(ctx, admin=True, dm=True): return
@@ -19,6 +21,15 @@ class herbert_live(commands.Cog, name="harass_pidge"):
 
         self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?, ?)", [0, time])
         self.bot.cursor.execute("commit")
+
+    @commands.command(name="pidge_from_now")
+    async def when_next_trigger(self, ctx):
+        one_day_seconds = 86400
+        now = self.bot.time_now()
+        time_through_day = now % one_day_seconds
+        start_of_day = now - time_through_day
+        message_time = start_of_day + (8 * 60 * 60) + (72 * 60 * 60)  # 8AM + 3 days
+        await ctx.send(message_time)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -39,7 +50,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
         if str(payload.emoji) == "❌":
             self.bot.cursor.execute("DELETE FROM harass_pidge")
             self.bot.cursor.execute("commit")
-            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message.id, self.bot.hours_from_now(3)])
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message_id, self.bot.hours_from_now(3)])
             self.bot.cursor.execute("commit")
 
             delay = self.bot.Chance({
@@ -62,7 +73,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
             start_of_day = now - time_through_day
             message_time = start_of_day + (8 * 60 * 60) + (72 * 60 * 60)  # 8AM + 3 days
 
-            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [0, self.bot.hours_from_now(message_time)])
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [0, message_time])
             self.bot.cursor.execute("commit")
 
             praise = self.bot.Chance({

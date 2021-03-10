@@ -63,10 +63,10 @@ class TempChannel(commands.Cog, name="temp_channel"):
         self.bot.timed_commands.append(self.room_timeout)
 
         self.bot.core_help_text["modules"] += [self.prefix]
-        self.bot.core_help_text["too lazy to categorize"] +=\
-            [f"{self.prefix}.{command}" for command in
-             sorted(["close", "time", "owner", "open", "reopen"])] + ["\n"]
-        self.bot.core_help_text["admins owonly"] += [f"{self.prefix}.order", f"{self.prefix}.settings"]
+        self.help_text = {
+            "General": [f"{self.prefix}.{command}" for command in ["close", "time", "owner", "open", "reopen"]],
+            "addymins": [f"{self.prefix}.order", f"{self.prefix}.settings"]
+        }
 
     @commands.command(name=f"{prefix}.open")
     async def room_open(self, ctx):
@@ -370,24 +370,25 @@ class TempChannel(commands.Cog, name="temp_channel"):
     @commands.command(name=f"{prefix}.help")
     async def room_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        docstring = """
-            ```This module allows users to open rooms temporarily.
-            A temporary room is one that will automatically archive or close after its time is up.
-            A room is moved to the provided category when it is archived.
-            These commands will work even if the temporary room is ignored.
-            
-            c.room.open - Opens a temporary room
-            c.room.close - Closes a temporary room
-            c.room.time - Change or check the time on a room.
-            c.room.owner - Who owns a temp room?
-            
-            c.room.order - Orders the archive category.
-            c.room.reopen - Reopens a previously archived temp room.
-            c.room.settings - nothing lol
-            ```
-            """
-        docstring = self.bot.remove_indentation(docstring)
-        await ctx.send(docstring)
+        # docstring = """
+        #     ```This module allows users to open rooms temporarily.
+        #     A temporary room is one that will automatically archive or close after its time is up.
+        #
+        #     c.room.open - Opens a temporary room
+        #     c.room.close - Closes a temporary room
+        #     c.room.time - Change or check the time on a room.
+        #     c.room.owner - Who owns a temp room?
+        #
+        #     c.room.order - Orders the archive category.
+        #     c.room.reopen - Reopens a previously archived temp room.
+        #     c.room.settings - nothing lol
+        #     ```
+        #     """
+        # docstring = self.bot.remove_indentation(docstring)
+        # await ctx.send(docstring)
+        desc = "This module allows users to open rooms temporarily.\n"\
+               "A temporary room is one that will automatically archive or close after its time is up."
+        await ctx.send(embed=self.bot.create_help(self.help_text, desc))
 
     @commands.command(name=f"{prefix}.open.help")
     async def room_open_help(self, ctx):

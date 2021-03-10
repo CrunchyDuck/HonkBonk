@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from random import random
 import traceback
 from math import trunc
+from collections import defaultdict
 
 load_dotenv()  # Fetches from .env file.
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
@@ -54,14 +55,12 @@ class MyBot(commands.Bot):
                             "random_e_tag"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
 
+        # Used for the "core" help command, which is called with c.help. Any non-specific commands are placed here.
         # This relies on dictionaries maintaining their declared order, rather than taking their hash order.
-        # This is only possible as of python 3.6
         self.core_help_text = {
             "modules": [],
-            "too lazy to categorize": [],
-            "admins owonly": [],
-            "sfw commands": [],
             }
+        self.core_help_text = defaultdict(list, **self.core_help_text)
 
         self.crunchyduck = myID  # Sometimes it's useful to know who your owner is :)
 
@@ -248,6 +247,26 @@ class MyBot(commands.Bot):
             if ctx.message.mentions:
                 user = ctx.message.mentions[0]
         return user
+
+    def create_help(self, help_dict, help_description=""):
+        """
+        Creates the standard help embed I use for honkbonk.
+
+        Arguments:
+            help_dict - Dictionary categorized as {category_name: [commands_in_category]}
+            help_description - What to display at the top of the description.
+        """
+        embed = discord.Embed(color=discord.Colour.dark_purple())
+        embed.description = help_description + "\n\n"
+
+        for category in help_dict.items():
+            cat_name = category[0]
+            cat_commands = sorted(category[1])
+            cat_commands = ", ".join(cat_commands)
+
+            embed.description += f"**{cat_name}**\n```{cat_commands} ```\n"
+
+        return embed
 
     @staticmethod
     def get_variable(string, key=None, type=None, pattern=None, default=None):
@@ -536,6 +555,16 @@ for cog in bot.active_cogs:
 @bot.event
 async def on_ready():
     print(f"{bot.user} has connected to Discord :) @ {datetime.now()}")
+
+
+
+
+
+
+
+
+
+
 
 loop = asyncio.get_event_loop()
 try:

@@ -24,8 +24,8 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
-        self.bot.core_help_text["admins owonly"] += sorted(["dm", "speak", "ignore", "ignore.none", "ignore.all"]) + ["\n"]
-        self.bot.core_help_text["too lazy to categorize"] += sorted(["timestamp", "id", "shuffle", "pat", "kick"]) + ["\n"]
+        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick"]
+        self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
     async def timestamp(self, ctx):
@@ -493,26 +493,29 @@ class Admin(commands.Cog, name="admin"):
     async def core_help(self, ctx):
         """The core help command."""
         if not await self.bot.has_perm(ctx, dm=True): return
-        help_string = "```Modules:\n" \
-                      "c.role - Vanity roles and moderation controls.\n" \
-                      "c.emoji - Adding and moderating emoji.\n" \
-                      "c.react - Automatic reactions to messages.\n" \
-                      "c.room - Temporary rooms.\n" \
-                      "c.vc - underdeveloped VC commands.\n" \
-                      "\n" \
-                      "Core commands:\n" \
-                      "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
-                      "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
-                      "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
-                      "c.asight - Allow a user to assign themselves the \"asight\" role for a specified amount of time.\n" \
-                      "c.sleep - Allows a user to set a time after which they'll be removed from VC.\n" \
-                      "c.shuffle - Shuffles a sentence." \
-                      "c.speak - Makes HonkBonk say something, somewhere :).\n" \
-                      "c.dm - Makes HonkBonk DM a user.\n" \
-                      "c.ignore - Setting honkbonk to ignore users/channels.\n" \
-                      "c.ignore.list - A list of ignored channels and users.\n" \
-                      "c.ignore.none - Stops ignoring all users and channels.```"
-        await ctx.send(help_string)
+        # help_string = "```Modules:\n" \
+        #               "c.role - Vanity roles and moderation controls.\n" \
+        #               "c.emoji - Adding and moderating emoji.\n" \
+        #               "c.react - Automatic reactions to messages.\n" \
+        #               "c.room - Temporary rooms.\n" \
+        #               "c.vc - underdeveloped VC commands.\n" \
+        #               "\n" \
+        #               "Core commands:\n" \
+        #               "c.timestamp - Provides a date from a Discord ID/Snowflake.\n" \
+        #               "c.id - Try to figure out what a Discord snowflake/id belongs to.\n" \
+        #               "c.dj - Allows control of the DJ role for the Rythm bot.\n" \
+        #               "c.asight - Allow a user to assign themselves the \"asight\" role for a specified amount of time.\n" \
+        #               "c.sleep - Allows a user to set a time after which they'll be removed from VC.\n" \
+        #               "c.shuffle - Shuffles a sentence." \
+        #               "c.speak - Makes HonkBonk say something, somewhere :).\n" \
+        #               "c.dm - Makes HonkBonk DM a user.\n" \
+        #               "c.ignore - Setting honkbonk to ignore users/channels.\n" \
+        #               "c.ignore.list - A list of ignored channels and users.\n" \
+        #               "c.ignore.none - Stops ignoring all users and channels.```"
+        # await ctx.send(help_string)
+        desc = "Type c.command.help for more info on that command\nE.G `c.role.help`, `c.pat.help`\n" \
+               "Note: Don't DM HonkBonk personal things. I can see that."
+        await ctx.send(embed=self.bot.create_help(self.bot.core_help_text, desc))
 
 
 def setup(bot):

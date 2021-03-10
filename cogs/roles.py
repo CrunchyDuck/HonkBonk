@@ -18,9 +18,10 @@ class RoleControl(commands.Cog, name="roles"):
         self.init_db(bot.cursor)
 
         self.bot.core_help_text["modules"] += [self.prefix]
-        self.bot.core_help_text["too lazy to categorize"] +=\
-            [f"{self.prefix}.{command}" for command in
-             sorted(["vanity", "delete", "info", "apply", "remove"])] + ["\n"]
+        self.help_text = {
+            "General": [f"{self.prefix}.{command}" for command in ["vanity", "delete", "info"]],
+            "a-admins~": ["role.apply", "role.remove"]
+        }
 
     # TODO: Allow only special users to access this/people who already have vanity roles.
     @commands.command(name=f"{prefix}.vanity")
@@ -549,14 +550,16 @@ class RoleControl(commands.Cog, name="roles"):
     @commands.command(name=f"{prefix}.help")
     async def roles_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        help_string =\
-        "```This module provides vanity roles and moderation control.\n\n" \
-        "c.role.vanity - Vanity roles!\n" \
-        "c.role.delete - Deleting a vanity role.\n" \
-        "c.role.info - Provides information about a role.\n" \
-        "c.role.apply - Controls for adding roles to a user.\n" \
-        "c.role.remove - Removing a role from a user. Cleans up any bot ties to the role.```"
-        await ctx.send(help_string)
+        # help_string =\
+        # "```This module provides vanity roles and moderation control.\n\n" \
+        # "c.role.vanity - Vanity roles!\n" \
+        # "c.role.delete - Deleting a vanity role.\n" \
+        # "c.role.info - Provides information about a role.\n" \
+        # "c.role.apply - Controls for adding roles to a user.\n" \
+        # "c.role.remove - Removing a role from a user. Cleans up any bot ties to the role.```"
+        # await ctx.send(help_string)
+        desc = "This module provides vanity roles and moderation control."
+        await ctx.send(embed=self.bot.create_help(self.help_text, desc))
 
     def get_hex(self, string):
         """Finds the first instance of a hex value in a string."""
