@@ -143,7 +143,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         if time > 0:
             time = (max(min(1440, time), 0.016)) / 60  # Limit to 1 day or 1 second. Also converts from the given minutes to hours.
-            end_time = self.bot.hours_from_now(time)
+            end_time = self.bot.time_from_now(hours=time)
             time_string = self.bot.time_to_string(hours=time)
 
             if result:  # Update existing entry.

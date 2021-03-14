@@ -309,7 +309,7 @@ class RoleControl(commands.Cog, name="roles"):
 
         if time != 0:
             time = max(min(336, time), 0.0003)  # Limit to 1 month or 1 second.
-            end_time = self.bot.hours_from_now(time)
+            end_time = self.bot.time_from_now(hours=time)
             time_string = self.bot.time_to_string(hours=time)
 
             if result:  # Update existing entry.

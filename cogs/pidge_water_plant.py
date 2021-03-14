@@ -50,7 +50,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
         if str(payload.emoji) == "❌":
             self.bot.cursor.execute("DELETE FROM harass_pidge")
             self.bot.cursor.execute("commit")
-            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message_id, self.bot.hours_from_now(3)])
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message_id, self.bot.time_from_now(hours=3)])
             self.bot.cursor.execute("commit")
 
             delay = self.bot.Chance({
@@ -122,7 +122,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
 
                     self.bot.cursor.execute("DELETE FROM harass_pidge")
                     self.bot.cursor.execute("commit")
-                    self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [message.id, self.bot.hours_from_now(0.5)])
+                    self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [message.id, self.bot.time_from_now(hours=0.5)])
                     self.bot.cursor.execute("commit")
 
     def init_db(self, cursor):

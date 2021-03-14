@@ -244,7 +244,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         ENTRIES_LIMIT = 10  # How many entries someone is allowed to make. TODO: Add to settings DB.
         WORD_SIZE_LIMIT = 3  # A word must be this or longer to be valid. TODO: Add to settings DB.
         existing_entries = self.db_get("user", user.id)
-        if (len(existing_entries) > ENTRIES_LIMIT) and user.id not in self.bot.admins:
+        if (len(existing_entries) >= ENTRIES_LIMIT) and user.id not in self.bot.admins:
             await ctx.send(f"You cannot have more than {ENTRIES_LIMIT} custom reactions.")
             return
 

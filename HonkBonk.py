@@ -333,10 +333,21 @@ class MyBot(commands.Bot):
         return dt.strftime(strftime_val)
 
     @staticmethod
-    def hours_from_now(hours):
-        """Calculates the Unix Epoch Time in the given amount of hours. UTC time."""
-        duration_seconds = hours * 60 * 60  # Convert the duration to seconds.
-        return time.mktime(datetime.now().timetuple()) + duration_seconds
+    def time_from_now(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
+        """Calculates the time from now with the provided values."""
+        seconds_total = MyBot.time_to_seconds(milliseconds=milliseconds, seconds=seconds, minutes=minutes, hours=hours, days=days, weeks=weeks)
+        return time.mktime(datetime.now().timetuple()) + seconds_total
+
+    @staticmethod
+    def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
+        """Converts the provided time units into seconds."""
+        seconds_total = seconds
+        seconds_total += milliseconds*0.000001
+        seconds_total += minutes*60
+        seconds_total += hours*3600
+        seconds_total += days*86400
+        seconds_total += weeks*604800
+        return seconds_total
 
     @staticmethod
     def time_to_string(seconds=0, minutes=0, hours=0, days=0):
@@ -349,18 +360,58 @@ class MyBot(commands.Bot):
 
         timestring = ""
         if days:
-            timestring += f"{trunc(days)} days, "
+            u = "day" if days == 1 else "days"
+            timestring += f"{trunc(days)} {u}, "
         if hours:
-            timestring += f"{trunc(hours)} hours, "
+            u = "hour" if hours == 1 else "hours"
+            timestring += f"{trunc(hours)} {u}, "
         if minutes:
-            timestring += f"{trunc(minutes)} minutes, "
+            u = "minute" if minutes == 1 else "minutes"
+            timestring += f"{trunc(minutes)} {u}, "
         if seconds:
-            timestring += f"{trunc(seconds)} seconds, "
+            u = "second" if seconds == 1 else "seconds"
+            timestring += f"{trunc(seconds)} {u}, "
 
         if timestring:
             timestring = timestring[:-2]  # Crop the last two characters
 
         return timestring
+
+    @staticmethod
+    def time_from_string(string):
+        """
+        Creates a time given in seconds out of a string. Accepts:
+        picoseconds, nanoseconds, milliseconds, centiseconds, deciseconds seconds, minutes, hours, days, weeks
+        """
+        seconds = 0
+        r_time = r"(\d+(?:\.\d+)?)"  # A number, optionally decimal.
+
+        # Name of unit, followed by how many seconds each is worth.
+        time_units = {
+            "picosecond": 0.000000000001,
+            "nanosecond": 0.000000001,
+            "microsecond": 0.000001,
+            "millisecond": 0.001,
+            "centisecond": 0.01,
+            "decisecond": 0.1,
+            "second": 1,
+            "minute": 60,
+            "hour": 3600,
+            "day": 86400,
+            "week": 604800,
+        }
+
+        # Search for the first instance of each of these.
+        for unit, worth_seconds in time_units.items():
+            re_string = rf"({r_time}) {unit}s?"
+            match = re.search(re_string, string)
+            if not match:
+                continue
+
+            t = float(match.group(1))
+            seconds += t*worth_seconds
+
+        return seconds
 
     @staticmethod
     def remove_indentation(string):

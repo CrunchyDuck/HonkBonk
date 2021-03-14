@@ -100,7 +100,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         duration = max(min(336, duration), 0.0003)  # Limit to 1 month or 1 second.
         topic = self.bot.get_variable(message.content, "topic", type="str", default="")
 
-        end_time = self.bot.hours_from_now(duration)
+        end_time = self.bot.time_from_now(hours=duration)
         
         # Input checks.
         if not name:
@@ -201,7 +201,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         if hours:
             if db_entry["user_id"] == user.id or user.id in self.bot.admins:
                 cur = self.bot.cursor
-                end_time = self.bot.hours_from_now(hours)
+                end_time = self.bot.time_from_now(hours=hours)
                 cur.execute(f"UPDATE temp_room SET end_time={end_time} WHERE room_id={channel.id}")
                 cur.execute("commit")
                 time_string = self.bot.time_to_string(hours=hours)
@@ -270,7 +270,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
         duration = max(min(336, duration), 0.0003)  # Limit to 1 month or 1 second.
         archive_cat = ctx.guild.get_channel(self.create_category)
 
-        end_time = self.bot.hours_from_now(duration)
+        end_time = self.bot.time_from_now(hours=duration)
 
         # Is channel already temp?
         self.bot.cursor.execute("SELECT * FROM temp_room WHERE room_id=?", (channel.id,))

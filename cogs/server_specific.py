@@ -86,8 +86,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
 
                         # Create DB entry.
                         time = 1  # Hard coded for now.
-                        end_time = self.bot.hours_from_now(time)
-                        time_string = self.bot.time_to_string(hours=time)
+                        end_time = self.bot.time_from_now(hours=time)
                         self.bot.cursor.execute("INSERT INTO dj_temp VALUES(?, ?)", [ctx.author.id, end_time])
                         self.bot.cursor.execute("commit")
 
@@ -141,8 +140,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
 
                 # Create DB entry
                 time = 1  # Hard coded for now.
-                end_time = self.bot.hours_from_now(time)
-                time_string = self.bot.time_to_string(hours=time)
+                end_time = self.bot.time_from_now(hours=time)
                 self.bot.cursor.execute(
                     f"UPDATE dj_temp SET user_id={new_user_id}, end_time={end_time} WHERE user_id={user_id}")
                 self.bot.cursor.execute("commit")
@@ -200,7 +198,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
 
         if time > 0:
             time = max(min(336, time), 0.0003)  # Limit to 1 month or 1 second.
-            end_time = self.bot.hours_from_now(time)
+            end_time = self.bot.time_from_now(hours=time)
             time_string = self.bot.time_to_string(hours=time)
 
             if result:  # Update existing entry.
@@ -317,7 +315,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         try:
             await member.remove_roles(dj, reason="DJ user left VC")
             self.cur.execute("DELETE FROM dj_temp")
-            self.cur.excute("commit")
+            self.cur.execute("commit")
             cnl = self.bot.get_channel(802620220832481315)
             await cnl.send(f"Removed dj role from {member.name} (User left channel)")
         except:
