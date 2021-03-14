@@ -22,7 +22,7 @@ class remindme(commands.Cog, name="harass_pidge"):
             await ctx.send("Provide me with a time to annoy you.")
 
         time = self.bot.time_from_string(time)  # Convert the time from the command into seconds.
-        time = min(336, time)  # Limit to 1 month.
+        time = min(86400*30, time)  # Limit to 1 month.
         endtime = self.bot.time_from_now(seconds=time)
 
         self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?)", [message, ctx.author.id, endtime])
