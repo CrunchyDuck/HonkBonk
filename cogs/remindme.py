@@ -3,7 +3,7 @@ from discord.ext import commands
 import re
 
 
-class remindme(commands.Cog, name="harass_pidge"):
+class remindme(commands.Cog, name="tatsu_is_bad"):
     r_segment_command = re.compile(r"\s(.*) in (.*)")  # Group 1 is message, group 2 is time.
 
     def __init__(self, bot):
@@ -13,13 +13,14 @@ class remindme(commands.Cog, name="harass_pidge"):
 
         self.bot.core_help_text["General"] += ["remind"]
 
-    @commands.command(name="remind")
+    @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
-        if not await self.bot.has_perm(ctx, admin=True, dm=True): return
+        if not await self.bot.has_perm(ctx, dm=True): return
 
         message, time = self.segment_command(ctx.message.content)
         if not message:
             await ctx.send("Provide me with a time to annoy you.")
+            return
 
         time = self.bot.time_from_string(time)  # Convert the time from the command into seconds.
         time = min(86400*30, time)  # Limit to 1 month.
@@ -31,18 +32,13 @@ class remindme(commands.Cog, name="harass_pidge"):
         how_long = self.bot.time_to_string(seconds=time)
         await ctx.send(f"**:alarm_clock:  |  Got it! I'll remind you in {how_long}**")
 
-    @commands.command(name="remindme")
-    async def remindme(self, ctx):
-        """Alias for remind"""
-        await self.remind(ctx)
-
     # Timed command
     async def remind_time(self, time_now):
         self.bot.cursor.execute("SELECT rowid, * FROM remindme ORDER BY time ASC")
         target = self.bot.cursor.fetchone()
         if target:  # TODO: Switch this to a while loop, so that multiple can be run every tick?
             if time_now > target[3]:
-                user = self.bot.get_user(target[2])  # pidge member in my server
+                user = self.bot.get_user(target[2])
                 await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
                 self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={target[0]}")
                 self.bot.cursor.execute("commit")
