@@ -1,10 +1,6 @@
 import discord
-import re
 from discord.ext import commands
-from discord.voice_client import opus
-import os
-from pytube import YouTube
-import traceback
+from asyncio import TimeoutError
 
 
 # TODO: Allow HB to play music from youtube, like bots such as Rythm. [in progress]
@@ -26,22 +22,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         }
 
     @commands.command(name=f"{prefix}.join")
-    async def join_voice_channel(self, ctx):
-        """Join the VC channel the user is currently in."""
-        if not await self.bot.has_perm(ctx, admin=True): return
-        voice = ctx.author.voice
-        cnl_variable = self.bot.get_variable(ctx.message.content, "cnl", "int")
-
-        if voice and voice.channel:
-            channel = voice.channel
-            await ctx.guild.change_voice_state(channel=channel, self_deaf=True, self_mute=True)
-            return
-        elif cnl_variable:
-            channel = voice.channel
-            await ctx.guild.change_voice_state(channel=channel, self_deaf=True, self_mute=True)
-        else:
-            await ctx.send("You're not in a voice channel, orokana baaaaaka")
-            return
+    async def join_vc_cmd(self, ctx):
+        await self.join_voice_channel(ctx, True, True)
 
     @commands.command(name=f"{prefix}.leave")
     async def leave_voice_channel(self, ctx):
@@ -49,6 +31,22 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not await self.bot.has_perm(ctx, admin=True): return
         await ctx.guild.change_voice_state(channel=None, self_deaf=True, self_mute=True)
         return
+
+    @commands.command(name=f"{prefix}.guitar")
+    async def play_pretty_guitar(self, ctx):
+        if not await self.bot.has_perm(ctx, admin=True): return
+        # Checks are done in join_voice_channel
+        if not await self.bot.has_perm(ctx): return
+        vc = await self.join_voice_channel(ctx, deaf=False, mute=False)
+        if not vc:
+            print(":(")
+            return
+
+        audiosource = "./attachments/pigid.mp3"
+        vc.play(discord.FFmpegPCMAudio(executable="C:\\ffmpeg\\bin\\ffmpeg.exe", source=audiosource))
+        vc.source = discord.PCMVolumeTransformer(vc.source, volume=1)
+
+
 
     @commands.command(name=f"{prefix}.help")
     async def vc_help(self, ctx):
@@ -192,6 +190,32 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 self.bot.cursor.execute("commit")
             else:
                 break
+
+    async def join_voice_channel(self, ctx, deaf=False, mute=False):
+        """Join the VC channel the user is currently in, or that they have mentioned."""
+        voice = ctx.author.voice
+        cnl_variable = self.bot.get_variable(ctx.message.content, "cnl", "int")
+
+        if voice and voice.channel:
+            channel = voice.channel
+        elif cnl_variable:
+            channel = voice.channel
+        else:
+            await ctx.send("You're not in a voice channel, orokana baaaaaka")
+            return None
+
+        vc_conn = None
+        try:
+            vc_conn = await channel.connect()
+        except TimeoutError:
+            pass
+        except discord.ClientException:
+            pass  # I don't know how to handle this yet.
+        except discord.opus.OpusNotLoaded:
+            print("opus not loaded some how??")
+
+        await ctx.guild.change_voice_state(channel=channel, self_deaf=deaf, self_mute=mute)
+        return vc_conn
 
     def init_db(self, cursor):
         cursor.execute("begin")
