@@ -356,16 +356,21 @@ class MyBot(commands.Bot):
         seconds_total += weeks*604800
         return seconds_total
 
+    # TODO: Return an object instead of a string, to give the user more control over what they display.
     @staticmethod
-    def time_to_string(seconds=0, minutes=0, hours=0, days=0):
+    def time_to_string(seconds=0, minutes=0, hours=0, days=0, weeks=0):
         """Returns the provided time as a string."""
         # Convert provided values to seconds.
-        time = (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer in the end.
-        days, remainder = divmod(time, 86400)
+        time = (weeks * 604800) + (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer in the end.
+        weeks, remainder = divmod(time, 604800)
+        days, remainder = divmod(remainder, 86400)
         hours, remainder = divmod(remainder, 3600)
         minutes, seconds = divmod(remainder, 60)
 
         timestring = ""
+        if weeks:
+            u = "week" if days == 1 else "weeks"
+            timestring += f"{trunc(weeks)} {u}, "
         if days:
             u = "day" if days == 1 else "days"
             timestring += f"{trunc(days)} {u}, "
@@ -395,6 +400,10 @@ class MyBot(commands.Bot):
 
         # Name of unit, followed by how many seconds each is worth.
         time_units = {
+            # others
+            "jiffy": 0.01,
+            "friedman": 86400 * 30 * 6,
+            # Metric units
             "picosecond": 0.000000000001,
             "nanosecond": 0.000000001,
             "microsecond": 0.000001,
@@ -406,6 +415,7 @@ class MyBot(commands.Bot):
             "hour": 3600,
             "day": 86400,
             "week": 604800,
+            "month": 86400*30,  # 30 days in a month :)
         }
 
         # Search for the first instance of each of these.
@@ -531,7 +541,7 @@ class MyBot(commands.Bot):
             return benchmarks
 
 
-async def timed_loop(aBot):
+async def timed_loop(aBot, loop_ticks=5):
     """
     A loop that polls regularly. Designed to do scheduled functions and run in an async loop with the main bot.
 
@@ -541,8 +551,8 @@ async def timed_loop(aBot):
 
     Arguments:
         aBot: The bot to run the functions on.
+        loop_ticks: How many seconds between each tick.
     """
-    loop_ticks = 5  # How regularly, in seconds, the loop is run.
     while True:
         await asyncio.sleep(loop_ticks)
         time_now = aBot.time_now()  # Current Unix Epoch time.
@@ -563,7 +573,6 @@ def allgroups(matchobject):
 
     return string
 
-# IDEA: Command to make a temporary room for discussion.
 # IDEA: A function for the bot that will take an image, and turn it into a Waveform/vectorscope/histogram analysis because they look fucking rad
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
