@@ -54,6 +54,7 @@ class MyBot(commands.Bot):
                             "server_specific", "pidge_water_plant", "remindme",
                             "random_e_tag"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+        self.owner_id = 411365470109958155
 
         # Used for the "core" help command, which is called with c.help. Any non-specific commands are placed here.
         # This relies on dictionaries maintaining their declared order, rather than taking their hash order.
@@ -624,13 +625,12 @@ async def on_ready():
     print(f"{bot.user} has connected to Discord :) @ {datetime.now()}")
 
 
-
-
-
-
-
-
-
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("command no no be is.")
+    else:
+        raise error
 
 
 loop = asyncio.get_event_loop()
