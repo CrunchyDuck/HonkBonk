@@ -130,13 +130,14 @@ class MyBot(commands.Bot):
         """Deletes a server setting."""
         #self.cursor.execute(f"DELETE FROM settings ")
 
-    async def has_perm(self, input, admin=False, dm=False, ignore_bot=True, banned_users=False, message_on_fail=True,
+    async def has_perm(self, input, *, admin=False, bot_owner=False, dm=False, ignore_bot=True, banned_users=False, message_on_fail=True,
                        bot_room=False, ignored_rooms=False):
         """
         Common permissions to be checked to see if this user is allowed to run a command.
         Arguments:
             input: Context or message, should be able to get a User from this.
             admin: Is this an admin only command?
+            bot_owner: Only the person who owns the bot.
             dm: Should this command be allowed in DMs?
             ignore_bot: If the message comes from a bot, ignore?
             banned_users: Whether to allow even banned users to use this command.
@@ -144,6 +145,7 @@ class MyBot(commands.Bot):
             bot_room: Whether this command should only run in bot rooms.
             ignored_rooms: Whether this command can be used in ignored rooms.
         """
+        # TODO: Switch to providing a dictionary instead of many bools, to allow one to put the checks in order.
         # TODO: Allow for a list of "ignored rooms" to be added to the permissions check.
 
         # Get information required to check perms.
@@ -157,6 +159,11 @@ class MyBot(commands.Bot):
             raise AttributeError(f"MyBot.has_perm was provided with incorrect type {type(input)} for input.")
 
         # Checks
+        if self.owner_id == input.author.id:
+            return True
+        elif bot_owner:
+            return False
+
         # An admin should only be stopped from a command if the room is ignored.
         if not ignored_rooms and self.is_channel_ignored(input):
             return False
