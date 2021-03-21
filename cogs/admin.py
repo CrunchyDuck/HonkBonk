@@ -24,7 +24,7 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
-        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick"]
+        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick", "uptime"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -350,6 +350,15 @@ class Admin(commands.Cog, name="admin"):
             await guild.kick(user, reason="self kick c.kick :)")
         except:
             traceback.print_exc()
+
+    @commands.command(name="uptime")
+    async def uptime(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        uptime = self.bot.time_now() - self.bot.uptime_seconds
+        uptime_string = self.bot.time_to_string(seconds=uptime)
+        uptime_start = self.bot.uptime_datetime.strftime("%Y/%m/%d T %H:%M:%S")
+
+        await ctx.send(f"{uptime_string}; Started at: {uptime_start}")
 
 
     @commands.command(name="id.help")

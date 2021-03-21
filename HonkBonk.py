@@ -55,6 +55,8 @@ class MyBot(commands.Bot):
                             "random_e_tag"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
         self.owner_id = 411365470109958155
+        self.uptime_seconds = self.time_now()
+        self.uptime_datetime = datetime.now()
 
         # Used for the "core" help command, which is called with c.help. Any non-specific commands are placed here.
         # This relies on dictionaries maintaining their declared order, rather than taking their hash order.
