@@ -17,7 +17,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
-            "General": ["vc.sleep"],
+            "General": ["vc.sleep", "vc.guitar"],
             "AAAAAdmins": [f"{self.prefix}.{command}" for command in ["join", "leave"]],
         }
 
@@ -34,8 +34,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.command(name=f"{prefix}.guitar")
     async def play_pretty_guitar(self, ctx):
-        if not await self.bot.has_perm(ctx, admin=True): return
-        # Checks are done in join_voice_channel
         if not await self.bot.has_perm(ctx): return
         vc = await self.join_voice_channel(ctx, deaf=False, mute=False)
         if not vc:
