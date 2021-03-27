@@ -13,11 +13,6 @@ import traceback
 from math import trunc
 from collections import defaultdict
 
-load_dotenv()  # Fetches from .env file.
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
-myID = int(os.getenv("OWNER_ID"))  # The ID of my account :) Certain commands can only be run by admins like me.
-bot_prefix = "c."  # Commands in chat should be prefixed with this.
-
 
 class MyBot(commands.Bot):
     """
@@ -47,8 +42,8 @@ class MyBot(commands.Bot):
     }
     r_newline_whitespace = r"(?<=\n)([ ]+)"  # The whitespace after a new line. Basically, removes indentation.
 
-    def __init__(self, bot_prefix, intents=None):
-        super().__init__(bot_prefix, intents=intents)  # This just runs the original commands.Bot __init__ function.
+    def __init__(self, bot_prefix, **kwargs):
+        super().__init__(bot_prefix, **kwargs)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
         self.active_cogs = ["admin", "emoji", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
                             "server_specific", "pidge_water_plant", "remindme",
@@ -65,11 +60,9 @@ class MyBot(commands.Bot):
             }
         self.core_help_text = defaultdict(list, **self.core_help_text)
 
-        self.crunchyduck = myID  # Sometimes it's useful to know who your owner is :)
-
         # TODO: Switch to storing permissions in a database rather than hardcoding them, so they can be changed on the fly.
         self.admins = [  # Certain commands can only be run by these users.
-            self.crunchyduck,
+            self.owner_id,
             337793807888285698,  # Oken
             630930243464462346,  # Pika
         ]
@@ -605,43 +598,50 @@ def allgroups(matchobject):
 # FIXME: Emoji pushing doesn't properly assign ownership.
 # FIXME: Clear attachments after emoji push.
 
-intents = discord.Intents.all()
-bot = MyBot(bot_prefix, intents=intents)
-bot.remove_command("help")  # the default help command is ugly and I maintain a help in my server. Also lets me control what's shown.
 
-# Set up logger. Modified docs version.
-logger = logging.getLogger('discord')
-logger.setLevel(logging.INFO)
-handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
-handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
-logger.addHandler(handler)
+if __name__ == "__main__":
+    load_dotenv()  # Fetches from .env file.
+    TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
+    myID = int(os.getenv("OWNER_ID"))  # The ID of my account :) Certain commands can only be run by admins like me.
+    bot_prefix = "c."  # Commands in chat should be prefixed with this.
 
-# Runs only the listed cogs
-# TODO: Learn how this works so I can use this in other code things I do, hotswitching modules is really cool.
-for cog in bot.active_cogs:
-    bot.load_extension(f"cogs.{cog}")
+    intents = discord.Intents.all()
+    bot = MyBot(bot_prefix, intents=intents)
+    bot.remove_command("help")  # the default help command is ugly and I maintain a help in my server. Also lets me control what's shown.
 
+    # Set up logger. Modified docs version.
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.INFO)
+    handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    logger.addHandler(handler)
 
-@bot.event
-async def on_ready():
-    print(f"{bot.user} has connected to Discord :) @ {datetime.now()}")
-
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send("command no no be is.")
-    else:
-        raise error
+    # Runs only the listed cogs
+    # TODO: Learn how this works so I can use this in other code things I do, hotswitching modules is really cool.
+    for cog in bot.active_cogs:
+        bot.load_extension(f"cogs.{cog}")
 
 
-loop = asyncio.get_event_loop()
-try:
-    asyncio.ensure_future(timed_loop(bot))
-    asyncio.ensure_future(bot.start(TOKEN))
-    loop.run_forever()
-except KeyboardInterrupt:
-    loop.run_until_complete(bot.logout())
-finally:
-    loop.close()
+    @bot.event
+    async def on_ready():
+        print(f"{bot.user} has connected to Discord :) @ {datetime.now()}")
+
+
+    @bot.event
+    async def on_command_error(ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            await ctx.send("command no no be is.")
+        else:
+            raise error
+
+
+    loop = asyncio.get_event_loop()
+    try:
+        asyncio.ensure_future(timed_loop(bot))
+        asyncio.ensure_future(bot.start(TOKEN))
+        loop.run_forever()
+    except KeyboardInterrupt:
+        loop.run_until_complete(bot.logout())
+    finally:
+        loop.close()
 
