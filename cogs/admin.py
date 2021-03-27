@@ -364,6 +364,19 @@ class Admin(commands.Cog, name="admin"):
     async def get_pfp(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         men = ctx.message.mentions
+        format = self.bot.get_variable(ctx.message.content, key="format", type="str", default=None)
+        if format not in ["jpg", "png", "gif", "webp", "jpeg"]:
+            await ctx.send(
+                "hey hey hey, duck here."
+                "\nare you stupid? or are you trying to break my bot?"
+                "\nyou provided an **__invalid format.__**"
+                f"\ndid you know? Discord's error throwing is pretty garbage. any time i get some dumb error because some idiot typed in {format}, honkbonk screams. in pain."
+                "\nthat's because of you. you did this."
+                "\nnot only have you made my life harder, forcing me to do constant error checking on discord's poor code."
+                "\nyou've hurt honkbonk."
+                "\napologize. and don't do it again.")
+            return
+
         if men:
             user = men[0]
         else:
@@ -385,7 +398,7 @@ class Admin(commands.Cog, name="admin"):
                     await ctx.send("Cannot find user.")
                     return
 
-        img = user.avatar_url_as(static_format="png", size=4096)
+        img = user.avatar_url_as(format=format, static_format="png", size=4096)
         await ctx.send(f"{img}")
 
     @commands.command(name="pfp.help")
@@ -393,11 +406,13 @@ class Admin(commands.Cog, name="admin"):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
         ```Get the profile picture of a user in the highest quality.
-        Can accept a mention or an ID.
+        Can accept a mention or an ID. Can also be provided a format for the image.
+        Valid formats: jpg, png, gif, webp, jpeg
 
         Example:
-            c.pfp @crungledungle
-            c.pfp 565879875647438851```
+            c.pfp @crungledungle format=png
+            c.pfp 565879875647438851
+            c.pfp 713465219724345395 format=gif```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
