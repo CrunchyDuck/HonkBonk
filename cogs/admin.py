@@ -367,10 +367,16 @@ class Admin(commands.Cog, name="admin"):
         if men:
             user = men[0]
         else:
-            id = int(self.bot.get_variable(ctx.message.content, type="int"))
+            id = self.bot.get_variable(ctx.message.content, type="int")
             if not id:
                 await ctx.send("Mention a user or provide an ID.")
                 return
+
+            id = int(id)
+            if id.bit_length() > 64:  # The exception thrown my discord is generic and so I check it manually.
+                await ctx.send("oi you cheeky bugga dis id roite here be too lonk oi oi")
+                return
+
             user = self.bot.get_user(id)
             if not user:
                 try:
