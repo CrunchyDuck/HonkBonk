@@ -24,7 +24,7 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
-        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick", "uptime"]
+        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -360,6 +360,41 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(f"{uptime_string}; Started at: {uptime_start}")
 
+    @commands.command(name="pfp")
+    async def get_pfp(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        men = ctx.message.mentions
+        if men:
+            user = men[0]
+        else:
+            id = int(self.bot.get_variable(ctx.message.content, type="int"))
+            if not id:
+                await ctx.send("Mention a user or provide an ID.")
+                return
+            user = self.bot.get_user(id)
+            if not user:
+                try:
+                    user = await self.bot.fetch_user(id)  # Get users the bot doesn't share a server with.
+                except discord.errors.NotFound:
+                    await ctx.send("Cannot find user.")
+                    return
+
+        img = user.avatar_url_as(static_format="png", size=4096)
+        await ctx.send(f"{img}")
+
+    @commands.command(name="pfp.help")
+    async def get_pfp_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Get the profile picture of a user in the highest quality.
+        Can accept a mention or an ID.
+
+        Example:
+            c.pfp @crungledungle
+            c.pfp 565879875647438851```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
 
     @commands.command(name="id.help")
     async def get_snowflake_help(self, ctx):
