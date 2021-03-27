@@ -47,7 +47,7 @@ class MyBot(commands.Bot):
         # The cogs to load on the bot.
         self.active_cogs = ["admin", "emoji", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
                             "server_specific", "pidge_water_plant", "remindme",
-                            "random_e_tag"]  # It says it can't find pidge_water_plant, it's lying.
+                            "random_e_tag", "spying"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
         self.owner_id = 411365470109958155
         self.uptime_seconds = self.time_now()
