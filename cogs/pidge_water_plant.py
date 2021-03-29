@@ -50,7 +50,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
         if str(payload.emoji) == "❌":
             self.bot.cursor.execute("DELETE FROM harass_pidge")
             self.bot.cursor.execute("commit")
-            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message_id, self.bot.time_from_now(hours=3)])
+            self.bot.cursor.execute("INSERT INTO harass_pidge VALUES(?,?)", [payload.message_id, self.bot.time_from_now(hours=4)])
             self.bot.cursor.execute("commit")
 
             delay = self.bot.Chance({
@@ -110,6 +110,8 @@ class herbert_live(commands.Cog, name="harass_pidge"):
                     "<https://www.youtube.com/watch?v=DzfxSQRuheY>": 1,
                     "Hi there, this is the Plant Protective Authorities, checking in on your Herbert.": 1,
                     "We've received reports that there's a dry plant in this area.": 1,
+                    "feed plant :)": 1,
+                    "moisturize": 1,
                 })
 
                 if target[1] == 0:

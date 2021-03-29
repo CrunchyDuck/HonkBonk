@@ -357,7 +357,7 @@ class MyBot(commands.Bot):
     def time_to_string(seconds=0, minutes=0, hours=0, days=0, weeks=0):
         """Returns the provided time as a string."""
         # Convert provided values to seconds.
-        time = (weeks * 604800) + (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer in the end.
+        time = (weeks * 604800) + (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer.
         weeks, remainder = divmod(time, 604800)
         days, remainder = divmod(remainder, 86400)
         hours, remainder = divmod(remainder, 3600)
@@ -365,7 +365,7 @@ class MyBot(commands.Bot):
 
         timestring = ""
         if weeks:
-            u = "week" if days == 1 else "weeks"
+            u = "week" if weeks == 1 else "weeks"
             timestring += f"{trunc(weeks)} {u}, "
         if days:
             u = "day" if days == 1 else "days"

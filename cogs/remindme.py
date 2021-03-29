@@ -4,7 +4,7 @@ import re
 
 
 class remindme(commands.Cog, name="tatsu_is_bad"):
-    r_segment_command = re.compile(r"\s(.*) in (.*)")  # Group 1 is message, group 2 is time.
+    r_segment_command = re.compile(r"\s(.*\s)?in (.*)")  # Group 1 is message, group 2 is time.
 
     def __init__(self, bot):
         self.bot = bot
@@ -25,8 +25,9 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         time = self.bot.time_from_string(time)  # Convert the time from the command into seconds.
         time = min(86400*30, time)  # Limit to 1 month.
         endtime = self.bot.time_from_now(seconds=time)
+        to_remind = self.bot.admin_override(ctx)
 
-        self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?)", [message, ctx.author.id, endtime])
+        self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?)", [message, to_remind.id, endtime])
         self.bot.cursor.execute("commit")
 
         how_long = self.bot.time_to_string(seconds=time)
@@ -53,6 +54,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         
         Examples:
             c.remind owo in 0.5 minutes
+            c.remind in 1 hour
             c.remindme you're cool somewhere in there in 1 day```
         """
         docstring = self.bot.remove_indentation(docstring)
@@ -67,7 +69,10 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         if not match:
             return [None, None]
 
-        return [match.group(1), match.group(2)]
+        m = match.group(1)
+        if not m:
+            m = "Reminder!"
+        return [m, match.group(2)]
 
     def init_db(self, cursor):
         cursor.execute("begin")
