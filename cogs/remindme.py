@@ -1,6 +1,7 @@
-import discord
 from discord.ext import commands
 import re
+from datetime import datetime
+
 
 
 class remindme(commands.Cog, name="tatsu_is_bad"):
@@ -33,6 +34,35 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         how_long = self.bot.time_to_string(seconds=time)
         await ctx.send(f"**:alarm_clock:  |  Got it! I'll remind you in {how_long}**")
 
+    @commands.command(name="reminders")
+    async def my_reminders(self, ctx):
+        if not await self.bot.has_perm(ctx, bot_owner=True, dm=True): return
+        user = self.bot.admin_override(ctx).id
+        message = ""
+
+        at_time = True # self.bot.get_variable(ctx.message.content, "at", type="keyword", default=False)
+        in_time = self.bot.get_variable(ctx.message.content, "in", type="keyword", default=False)
+
+        c = self.bot.cursor
+        c.execute("SELECT * FROM remindme WHERE user_id=?", [user])
+
+        for entry in c.fetchall():
+            if in_time:
+                time = self.bot.time_to_string(seconds=entry[2] - self.bot.time_now())
+                time = f" in {time}"
+                message += f"{entry[0]} in {time}\n"
+            elif at_time:
+                time = datetime.fromtimestamp(entry[2]).strftime("%Y-%m-%d %H:%M:%S GMT")
+                time = f"{time}"
+                message += f"{time}: {entry[0]}\n"
+
+        if not message:
+            message = "No reminders!"
+        await sleep(3)
+
+        await ctx.send(self.bot.escape_message(message))
+
+
     # Timed command
     async def remind_time(self, time_now):
         self.bot.cursor.execute("SELECT rowid, * FROM remindme ORDER BY time ASC")
@@ -40,7 +70,12 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         if target:  # TODO: Switch this to a while loop, so that multiple can be run every tick?
             if time_now > target[3]:
                 user = self.bot.get_user(target[2])
-                await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
+                try:
+                    await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
+                except AttributeError:
+                    print(f"Could not message {target[1]}")
+                    pass
+
                 self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={target[0]}")
                 self.bot.cursor.execute("commit")
 
@@ -56,6 +91,20 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             c.remind owo in 0.5 minutes
             c.remind in 1 hour
             c.remindme you're cool somewhere in there in 1 day```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="reminders.help")
+    async def reminders_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```View your reminders!
+        Can be provided with the keyword "in" to change from absolute time to relative time.
+        
+        Examples:
+            c.reminders
+            c.reminders in```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
