@@ -47,7 +47,7 @@ class MyBot(commands.Bot):
         # The cogs to load on the bot.
         self.active_cogs = ["admin", "emoji", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
                             "server_specific", "pidge_water_plant", "remindme",
-                            "random_e_tag", "spying"]  # It says it can't find pidge_water_plant, it's lying.
+                            "random_e_tag", "spying", "random_word"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
         self.owner_id = 411365470109958155
         self.uptime_seconds = self.time_now()
@@ -57,6 +57,7 @@ class MyBot(commands.Bot):
         # This relies on dictionaries maintaining their declared order, rather than taking their hash order.
         self.core_help_text = {
             "modules": [],
+            "General": [],
             }
         self.core_help_text = defaultdict(list, **self.core_help_text)
 
@@ -249,6 +250,11 @@ class MyBot(commands.Bot):
         if user.id in self.admins:
             if ctx.message.mentions:
                 user = ctx.message.mentions[0]
+            else:
+                target = int(self.get_variable(ctx.message.content, "user", type="int", default=0))
+                if target:
+                    user = self.get_user(target)
+
         return user
 
     def create_help(self, help_dict, help_description=""):
@@ -320,6 +326,16 @@ class MyBot(commands.Bot):
                 return allgroups(search_result)
 
         return default
+
+    @staticmethod
+    def escape_message(message):
+        """Make a message 'safe' to send by removing any pings"""
+
+        m = message
+        m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
+        m = m.replace("@", "\\@")
+        m = m.replace("@everyone", f"@\u200beveryone")
+        return m
 
     @staticmethod
     def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
