@@ -31,18 +31,24 @@ class Admin(commands.Cog, name="admin"):
     async def timestamp(self, ctx):
         """
         Get the timestamp of a provided Discord Snowflake.
+
         Example command:
             c.timestamp 411365470109958155
-        Example response:
-            2018-02-09 03:39:30 UTC
         """
         if not await self.bot.has_perm(ctx, admin=False, message_on_fail=False): return
-        snowflake = self.bot.get_variable(ctx.message.content, type="int")
-        if not snowflake:
+
+        timestamps = re.search(r"c.timestamp ([ \d]+)", ctx.message.content)
+        if not timestamps:
             await ctx.send("No snowflake found.")
             return
 
-        await ctx.send(self.bot.date_from_snowflake(snowflake))
+        message = ""
+        for timestamp in timestamps.group(1).split(" "):
+            m = int(timestamp.replace(" ", ""))
+            print(m)
+            message += self.bot.date_from_snowflake(m) + "\n"
+
+        await ctx.send(message)
 
     @commands.command(name="echo")
     async def echo(self, ctx):
@@ -53,10 +59,13 @@ class Admin(commands.Cog, name="admin"):
     @commands.command(name="test")
     async def test(self, ctx):
         """Misc code I needed to test."""
-        if not await self.bot.has_perm(ctx, admin=True, message_on_fail=False): return
+        if not await self.bot.has_perm(ctx, bot_owner=True, message_on_fail=False): return
         one_day_seconds = 86400
-        time_through_day = self.bot.time_now() % one_day_seconds
-        print(time_through_day / 60)
+        now = self.bot.time_now()
+        time_through_day = now % one_day_seconds
+        start_of_day = now - time_through_day
+        message_time = start_of_day + (8 * 60 * 60) + (72 * 60 * 60)  # 8AM + 3 days
+        print(message_time)
 
     @commands.command(name="print")
     async def print_message(self, ctx):
@@ -537,10 +546,8 @@ class Admin(commands.Cog, name="admin"):
         ```Get the timestamp of a provided Discord Snowflake. This command works in DMs.
 
         Example command:
-            c.timestamp 411365470109958155
-            
-        Example response:
-            2018-02-09 03:39:30 UTC```
+            c.timestamp 411365470109958155```
+            c.timestamp 826479201837907988 826811541722497025```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
