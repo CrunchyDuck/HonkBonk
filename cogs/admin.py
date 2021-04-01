@@ -2,6 +2,7 @@ import discord
 import re
 from discord.ext import commands
 from random import shuffle
+from random import random
 import traceback
 
 class Admin(commands.Cog, name="admin"):
@@ -133,14 +134,22 @@ class Admin(commands.Cog, name="admin"):
         pos = 0
         while pos < len(msg):
             letter = msg[pos]
+
             if letter == "r" or letter == "l":
                 msg = msg[:pos] + "w" + msg[pos + 1:]
+                letter = "w"
             elif letter == "R" or letter == "L":
                 msg = msg[:pos] + "W" + msg[pos + 1:]
+                letter = "W"
             elif letter == " ":
                 emote_to_add = self.uwu_faces.get_value()
                 msg = msg[:pos] + emote_to_add + msg[pos + 1:]
                 pos += len(emote_to_add) - 1
+
+            if msg[pos - 1] == " ":
+                chance = random()
+                if((letter >= 'a' and letter <= 'z') or (letter >= 'A' and letter <= 'Z')) and chance > 0.93:
+                    msg = msg[:pos] + letter + "-" + letter + msg[pos + 1:]
 
             pos += 1
 
