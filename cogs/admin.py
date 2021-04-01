@@ -24,7 +24,7 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
-        self.bot.core_help_text["General"] += ["timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp"]
+        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -88,6 +88,22 @@ class Admin(commands.Cog, name="admin"):
 
         channel = ctx.message.channel_mentions[0]
         await channel.send(content)
+
+    @commands.command(name="small")
+    async def make_superscript(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        msg = ctx.message.content
+        if len(msg) < 8:
+            await ctx.send("Can't superscript nothing :(")
+            return
+        msg = msg[7:]
+
+        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=()"
+        alphabet_superscript = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻᴬᴮCᴰᴱFᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿSᵀᵁⱽᵂᵡᵞᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+        superscript = str.maketrans(alphabet, alphabet_superscript)
+
+        await ctx.send(msg.translate(superscript))
+
 
     @commands.command(name="dm")
     async def dm_user(self, ctx):
@@ -409,6 +425,18 @@ class Admin(commands.Cog, name="admin"):
 
         img = user.avatar_url_as(format=format, static_format="png", size=4096)
         await ctx.send(f"{img}")
+
+    @commands.command(name="small.help")
+    async def make_superscript_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Make a sentence small :)
+
+        Example:
+            c.small i am a fairy```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
 
     @commands.command(name="pfp.help")
     async def get_pfp_help(self, ctx):
