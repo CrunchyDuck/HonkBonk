@@ -3,7 +3,6 @@ import re
 from datetime import datetime
 
 
-
 class remindme(commands.Cog, name="tatsu_is_bad"):
     r_segment_command = re.compile(r"\s(.*\s)?in (.*)")  # Group 1 is message, group 2 is time.
 
@@ -12,7 +11,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.remind_time)
 
-        self.bot.core_help_text["General"] += ["remind"]
+        self.bot.core_help_text["General"] += ["remind", "reminders"]
 
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
@@ -24,7 +23,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             return
 
         time = self.bot.time_from_string(time)  # Convert the time from the command into seconds.
-        time = min(86400*30, time)  # Limit to 1 month.
+        time = min(86400 * 30, time)  # Limit to 1 month.
         endtime = self.bot.time_from_now(seconds=time)
         to_remind = self.bot.admin_override(ctx)
 
@@ -36,32 +35,30 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
     @commands.command(name="reminders")
     async def my_reminders(self, ctx):
-        if not await self.bot.has_perm(ctx, bot_owner=True, dm=True): return
+        if not await self.bot.has_perm(ctx, dm=True): return
         user = self.bot.admin_override(ctx).id
         message = ""
 
-        at_time = True # self.bot.get_variable(ctx.message.content, "at", type="keyword", default=False)
-        in_time = self.bot.get_variable(ctx.message.content, "in", type="keyword", default=False)
+        at_time = self.bot.get_variable(ctx.message.content, "at", type="keyword", default=False)
+        in_time = True # self.bot.get_variable(ctx.message.content, "in", type="keyword", default=False)
 
         c = self.bot.cursor
         c.execute("SELECT * FROM remindme WHERE user_id=?", [user])
 
         for entry in c.fetchall():
-            if in_time:
-                time = self.bot.time_to_string(seconds=entry[2] - self.bot.time_now())
-                time = f" in {time}"
-                message += f"{entry[0]} in {time}\n"
-            elif at_time:
+            if at_time:
                 time = datetime.fromtimestamp(entry[2]).strftime("%Y-%m-%d %H:%M:%S GMT")
                 time = f"{time}"
                 message += f"{time}: {entry[0]}\n"
+            elif in_time:
+                time = self.bot.time_to_string(seconds=entry[2] - self.bot.time_now())
+                time = f" ------ in {time}"
+                message += f"{entry[0]}{time}\n"
 
         if not message:
             message = "No reminders!"
-        await sleep(3)
 
         await ctx.send(self.bot.escape_message(message))
-
 
     # Timed command
     async def remind_time(self, time_now):
