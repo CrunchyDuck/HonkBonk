@@ -138,7 +138,9 @@ class Admin(commands.Cog, name="admin"):
             elif letter == "R" or letter == "L":
                 msg = msg[:pos] + "W" + msg[pos + 1:]
             elif letter == " ":
-                msg = msg[:pos] + self.uwu_faces.get_value() + msg[pos + 1:]
+                emote_to_add = self.uwu_faces.get_value()
+                msg = msg[:pos] + emote_to_add + msg[pos + 1:]
+                pos += len(emote_to_add) - 1
 
             pos += 1
 
