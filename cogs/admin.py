@@ -24,6 +24,23 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
+        self.uwu_faces = self.bot.Chance({
+            " ": 500,
+            " UwU ": 15,
+            " OwO ": 15,
+            " >.< ": 10,
+            " o-owo ": 10,
+            " OWOWO ": 10,
+            " >//< ": 10,
+            " >> ": 10,
+            " x3 ": 10,
+            " :3 ": 10,
+            " :c ": 5,
+            " c: ": 5,
+            " :J ": 2,
+            " :v ": 1
+        })
+
         self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
@@ -112,23 +129,6 @@ class Admin(commands.Cog, name="admin"):
             await ctx.send("Youwu have to add a message in owdew to UwU-ify it >.<")
             return
         msg = msg[5:]
-
-        self.uwu_faces = self.bot.Chance({
-            " ": 500,
-            " UwU ": 15,
-            " OwO ": 15,
-            " >.< ": 10,
-            " o-owo ": 10,
-            " OWOWO ": 10,
-            " >//< ": 10,
-            " >> ": 10,
-            " x3 ": 10,
-            " :3 ": 10,
-            " :c ": 5,
-            " c: ": 5,
-            " :J ": 2,
-            " :v ": 1
-        })
 
         pos = 0
         while pos < len(msg):
