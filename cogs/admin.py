@@ -24,7 +24,7 @@ class Admin(commands.Cog, name="admin"):
             "dunno": 100
         })
 
-        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp"]
+        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -104,6 +104,45 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(msg.translate(superscript))
 
+    @commands.command(name="uwu")
+    async def make_uwu(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        msg = ctx.message.content
+        if len(msg) < 6:
+            await ctx.send("Youwu have to add a message in owdew to UwU-ify it >.<")
+            return
+        msg = msg[5:]
+
+        self.uwu_faces = self.bot.Chance({
+            " ": 500,
+            " UwU ": 15,
+            " OwO ": 15,
+            " >.< ": 10,
+            " o-owo ": 10,
+            " OWOWO ": 10,
+            " >//< ": 10,
+            " >> ": 10,
+            " x3 ": 10,
+            " :3 ": 10,
+            " :c ": 5,
+            " c: ": 5,
+            " :J ": 2,
+            " :v ": 1
+        })
+
+        pos = 0
+        while pos < len(msg):
+            letter = msg[pos]
+            if letter == "r" or letter == "l":
+                msg = msg[:pos] + "w" + msg[pos + 1:]
+            elif letter == "R" or letter == "L":
+                msg = msg[:pos] + "W" + msg[pos + 1:]
+            elif letter == " ":
+                msg = msg[:pos] + self.uwu_faces.get_value() + msg[pos + 1:]
+
+            pos += 1
+
+        await ctx.send(msg)
 
     @commands.command(name="dm")
     async def dm_user(self, ctx):
@@ -435,6 +474,18 @@ class Admin(commands.Cog, name="admin"):
         Example:
             c.small i am a fairy```
         """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="uwu.help")
+    async def make_uwu_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+            ```UwU-ifies a given sentence.
+
+            Exampwe:
+                c.uwu i'm a furry```
+            """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
