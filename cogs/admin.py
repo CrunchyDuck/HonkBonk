@@ -116,8 +116,8 @@ class Admin(commands.Cog, name="admin"):
             return
         msg = msg[7:]
 
-        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=()"
-        alphabet_superscript = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻᴬᴮCᴰᴱFᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿSᵀᵁⱽᵂᵡᵞᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=()?"
+        alphabet_superscript = "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻᴬᴮCᴰᴱFᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿSᵀᵁⱽᵂᵡᵞᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ˀ"
         superscript = str.maketrans(alphabet, alphabet_superscript)
 
         await ctx.send(msg.translate(superscript))
@@ -135,10 +135,10 @@ class Admin(commands.Cog, name="admin"):
         while pos < len(msg):
             letter = msg[pos]
 
-            if letter == "r" or letter == "l":
+            if letter in "rl":
                 msg = msg[:pos] + "w" + msg[pos + 1:]
                 letter = "w"
-            elif letter == "R" or letter == "L":
+            elif letter in "RL":
                 msg = msg[:pos] + "W" + msg[pos + 1:]
                 letter = "W"
             elif letter == " ":
@@ -148,8 +148,8 @@ class Admin(commands.Cog, name="admin"):
 
             if msg[pos - 1] == " ":
                 chance = random()
-                if((letter >= 'a' and letter <= 'z') or (letter >= 'A' and letter <= 'Z')) and chance > 0.93:
-                    msg = msg[:pos] + letter + "-" + letter + msg[pos + 1:]
+                if letter.isalpha() and chance > 0.93:
+                    msg = msg[:pos] + f"{letter}-{letter}" + msg[pos + 1:]
 
             pos += 1
 
