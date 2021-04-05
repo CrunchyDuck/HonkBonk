@@ -42,7 +42,34 @@ class Admin(commands.Cog, name="admin"):
             " :v ": 1
         })
 
-        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu"]
+        self.magic_8_ball = self.bot.Chance({
+            "It is certain": 100,
+            "It is decidedly so.": 100,
+            "Without a doubt.": 100,
+            "Yes - definitely.": 100,
+            "You may rely on it.": 100,
+            "As I see it, yes": 100,
+            "Most likely.": 100,
+            "Outlook good.": 100,
+            "Yes.": 100,
+            "Signs point to yes.": 100,
+            "Reply hazy, try again.": 100,
+            "Ask again later.": 100,
+            "Better not tell you now.": 100,
+            "Cannot predict now.": 100,
+            "Concentrate and ask again.": 100,
+            "Don't count on it.": 100,
+            "My reply is no.": 100,
+            "My sources say no.": 100,
+            "Outlook not so good.": 100,
+            "Very doubtful.": 100,
+            "nyes uwu": 100,
+            "nyo òwó": 100,
+            "m-maybe.... >//<": 100,
+            "i don't knowo wight now >>": 100
+        })
+
+        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -154,6 +181,13 @@ class Admin(commands.Cog, name="admin"):
             pos += 1
 
         await ctx.send(msg)
+
+    @commands.command(name="8ball")
+    async def magic_8_ball(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+
+        reply = self.magic_8_ball.get_value()
+        await ctx.send(reply)
 
     @commands.command(name="dm")
     async def dm_user(self, ctx):
@@ -497,6 +531,18 @@ class Admin(commands.Cog, name="admin"):
             Exampwe:
                 c.uwu i'm a furry```
             """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="8ball.help")
+    async def magic_8_ball_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+                ```Gives a randomly generated answer. Place your fortune in the hands of HonkBonk~
+
+                Example:
+                    c.8ball Does Bonk Honk like me...?```
+                """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
