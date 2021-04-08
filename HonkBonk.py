@@ -355,7 +355,7 @@ class MyBot(commands.Bot):
     def time_from_now(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
         """Calculates the time from now with the provided values."""
         seconds_total = MyBot.time_to_seconds(milliseconds=milliseconds, seconds=seconds, minutes=minutes, hours=hours, days=days, weeks=weeks)
-        return time.mktime(datetime.now().timetuple()) + seconds_total
+        return time.mktime(datetime.utcnow().timetuple()) + seconds_total
 
     @staticmethod
     def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
@@ -452,7 +452,7 @@ class MyBot(commands.Bot):
 
     @staticmethod
     def time_now():
-        return time.mktime(datetime.now().timetuple())  # Current Unix Epoch time.
+        return time.mktime(datetime.utcnow().timetuple())  # Current Unix Epoch time.
 
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.
