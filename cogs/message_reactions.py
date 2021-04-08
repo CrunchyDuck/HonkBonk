@@ -396,7 +396,7 @@ class Reaction(commands.Cog, name="message_reactions"):
         docstring = """
         ```Add a word reaction to the database. Multiple reactions can be added to one word.
         When adding emoji, they must be separated by one space.
-        Admins can mention a user to invoke this command as if they were that user.
+        Supports admin override.
         
         Arguments:
             (Required)
@@ -404,7 +404,7 @@ class Reaction(commands.Cog, name="message_reactions"):
             
             (One or the other)
             word: The word to apply this reaction to.
-            pattern: A RegEx pattern of strings to apply the reaction to.
+            pattern: A RegEx pattern of strings to apply the reaction to. See: https://regexr.com/
             
         Examples:
             c.react.add :mag_right: :mag: word="investigate"
