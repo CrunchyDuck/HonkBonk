@@ -49,7 +49,7 @@ class MyBot(commands.Bot):
                             "server_specific", "pidge_water_plant", "remindme",
                             "random_e_tag", "spying", "random_word"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
-        self.owner_id = 411365470109958155
+        self.owner_id = os.getenv("OWNER_ID")
         self.uptime_seconds = self.time_now()
         self.uptime_datetime = datetime.now()
 
