@@ -149,6 +149,21 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(msg.translate(superscript))
 
+    @commands.command(name="big")
+    async def make_fullwidth(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        msg = ctx.message.content
+        if len(msg) < 6:
+            await ctx.send("Can't big nothing :(")
+            return
+        msg = msg[6:]
+
+        alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=()? "
+        alphabet_big = "ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ０１２３４５６７８９+－＝（）？　"
+        superscript = str.maketrans(alphabet, alphabet_big)
+
+        await ctx.send(msg.translate(superscript))
+
     @commands.command(name="uwu")
     async def make_uwu(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
