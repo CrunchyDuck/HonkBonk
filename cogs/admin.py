@@ -1,8 +1,7 @@
 import discord
 import re
 from discord.ext import commands
-from random import shuffle
-from random import random
+from random import shuffle, random, randrange, uniform
 import traceback
 
 class Admin(commands.Cog, name="admin"):
@@ -69,7 +68,7 @@ class Admin(commands.Cog, name="admin"):
             "i don't knowo wight now >>": 100
         })
 
-        self.bot.core_help_text["General"] += ["small", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
+        self.bot.core_help_text["General"] += ["small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -105,12 +104,34 @@ class Admin(commands.Cog, name="admin"):
     async def test(self, ctx):
         """Misc code I needed to test."""
         if not await self.bot.has_perm(ctx, bot_owner=True, message_on_fail=False): return
-        one_day_seconds = 86400
-        now = self.bot.time_now()
-        time_through_day = now % one_day_seconds
-        start_of_day = now - time_through_day
-        message_time = start_of_day + (8 * 60 * 60) + (72 * 60 * 60)  # 8AM + 3 days
-        print(message_time)
+        await ctx.send(ctx.message.content[::-1])
+
+    @commands.command(name="num")
+    async def randnumber(self, ctx):
+        if not await self.bot.has_perm(ctx, message_on_fail=False): return
+        try:
+            msg = ctx.message.content
+
+            isfloat = self.bot.get_variable(msg, key="float", type="keyword", default=False)
+            valfrom = float(self.bot.get_variable(msg, key="from", type="float", default=0))
+            valto = float(self.bot.get_variable(msg, key="to", type="float", default=100))
+            amount = int(self.bot.get_variable(msg, key="amount", type="int", default=1))
+
+            reply = ""
+            if not isfloat:
+                method = randrange
+                valfrom = int(valfrom-1)
+                valto = int(valto+1)
+            else:
+                method = uniform
+
+            for i in range(amount):
+                reply += f"{round(method(valfrom, valto), 2)}, "
+
+            await ctx.send(reply[:-2])
+        except:
+            await ctx.send("no :)")
+            return
 
     @commands.command(name="print")
     async def print_message(self, ctx):
@@ -194,6 +215,10 @@ class Admin(commands.Cog, name="admin"):
                     msg = msg[:pos] + f"{letter}-{letter}" + msg[pos + 1:]
 
             pos += 1
+
+        if len(msg) > 2000:
+            await ctx.send(f"t-t-too long {self.uwu_faces.get_value()}")
+            return
 
         await ctx.send(msg)
 
@@ -533,6 +558,25 @@ class Admin(commands.Cog, name="admin"):
 
         Example:
             c.small i am a fairy```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+    @commands.command(name="num.help")
+    async def randnum_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```get a random number!
+        
+        Arguments:
+            from: from this value, inclusive. default 0
+            to: to this value, inclusive. default 100
+            amount: How many numbers to get
+            float: Whether to use decimals numbers, to 3 positions.
+
+        Example:
+            c.num
+            c.num from=-100 to=100 amount=10 float```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
