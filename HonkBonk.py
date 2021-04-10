@@ -37,8 +37,8 @@ class MyBot(commands.Bot):
     pformats = {
         # "bool": r"(\bTrue\b|\bFalse\b)",
         "str": r"""(?:(?:["”'`]([^"”'`]*)["”'`])|(\w*))""",  # TODO: Update this with capture group backreferencing
-        "float": r"(\d+(?:\.\d+)?)",
-        "int": r"(\d+)"
+        "float": r"(-?\d+(?:\.\d+)?)",
+        "int": r"(-?\d+)"
     }
     r_newline_whitespace = r"(?<=\n)([ ]+)"  # The whitespace after a new line. Basically, removes indentation.
 
@@ -49,7 +49,7 @@ class MyBot(commands.Bot):
                             "server_specific", "pidge_water_plant", "remindme",
                             "random_e_tag", "spying", "random_word"]  # It says it can't find pidge_water_plant, it's lying.
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
-        self.owner_id = os.getenv("OWNER_ID")
+        self.owner_id = int(os.getenv("OWNER_ID"))
         self.uptime_seconds = self.time_now()
         self.uptime_datetime = datetime.now()
 
@@ -248,12 +248,22 @@ class MyBot(commands.Bot):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
         user = ctx.author
         if user.id in self.admins:
-            if ctx.message.mentions:
-                user = ctx.message.mentions[0]
-            else:
-                target = int(self.get_variable(ctx.message.content, "user", type="int", default=0))
-                if target:
-                    user = self.get_user(target)
+            return self._override(ctx)
+
+    def owner_override(self, ctx):
+        """Allows only me to invoke a command on behalf of someone else."""
+        user = ctx.author
+        if user.id == self.owner_id:
+            return self._override(ctx)
+
+    def _override(self, ctx):
+        user = ctx.author
+        if ctx.message.mentions:
+            user = ctx.message.mentions[0]
+        else:
+            target = int(self.get_variable(ctx.message.content, "user", type="int", default=0))
+            if target:
+                user = self.get_user(target)
 
         return user
 

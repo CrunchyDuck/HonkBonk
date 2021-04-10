@@ -41,7 +41,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     @commands.command(name="reminders")
     async def my_reminders(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        user = self.bot.admin_override(ctx).id
+        user = self.bot.owner_override(ctx).id
         message = ""
 
         at_time = self.bot.get_variable(ctx.message.content, "at", type="keyword", default=False)
