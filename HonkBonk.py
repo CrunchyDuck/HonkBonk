@@ -656,6 +656,13 @@ if __name__ == "__main__":
     @bot.event
     async def on_command_error(ctx, error):
         if isinstance(error, commands.CommandNotFound):
+            # Pat reaction.
+            pats = re.search(r"c.((?:pat)+)", ctx.message.content)
+            if pats:
+                num = len(pats.group(1)) // 3
+                await ctx.send("U" + ("wU" * num))
+                return
+
             await ctx.send("command no no be is.")
         else:
             raise error

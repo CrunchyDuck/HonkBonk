@@ -473,12 +473,6 @@ class Admin(commands.Cog, name="admin"):
 
         await ctx.send(sentence)
 
-    @commands.command(name="pat")
-    async def pat(self, ctx):
-        """Give Honk some appreciation in the form of a pat. Good bot."""
-        if not await self.bot.has_perm(ctx, dm=True): return
-        await ctx.send("UwU")
-
     @commands.command(name="kick")
     async def selfkick(self, ctx):
         """Allows the user to kick themselves from the server for fun."""
