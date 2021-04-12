@@ -248,13 +248,15 @@ class MyBot(commands.Bot):
         """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
         user = ctx.author
         if user.id in self.admins:
-            return self._override(ctx)
+            user = self._override(ctx)
+        return user
 
     def owner_override(self, ctx):
         """Allows only me to invoke a command on behalf of someone else."""
         user = ctx.author
         if user.id == self.owner_id:
-            return self._override(ctx)
+            user = self._override(ctx)
+        return user
 
     def _override(self, ctx):
         user = ctx.author
