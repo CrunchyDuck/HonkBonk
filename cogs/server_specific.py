@@ -322,6 +322,17 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             traceback.print_exc()
             return
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if not await self.bot.has_perm(message, ignore_bot=False, message_on_fail=False): return
+        msg = message.content
+        self_refer = re.search(r"^i['’]?m(.+)", msg, re.I)
+        if self_refer:
+            try:
+                await message.author.edit(reason="they said \"I'm\"", nick=self_refer.group(1)[:32])
+            except:
+                pass
+
     def init_db(self, cursor):
         cursor.execute("begin")
         cursor.execute(
