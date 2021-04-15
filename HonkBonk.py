@@ -12,9 +12,11 @@ from random import random
 import traceback
 from math import trunc
 from collections import defaultdict
+from pathlib import Path
 
 
 class MyBot(commands.Bot):
+    # TODO: Update docstring
     """
     An expanded version of discord.ext.commands.Bot.
 
@@ -24,8 +26,6 @@ class MyBot(commands.Bot):
         A list of user IDs who have admin privileges over this bot.
     active_cogs: List[:class:'str']
         A list of the currently loaded cogs.
-    crunchyduck: :class:'int'
-        My Discord snowflake.
     zws: :class:'str'
         A zero width space, used in embeds.
     db:
@@ -45,9 +45,9 @@ class MyBot(commands.Bot):
     def __init__(self, bot_prefix, **kwargs):
         super().__init__(bot_prefix, **kwargs)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
-        self.active_cogs = ["admin", "emoji", "roles", "message_reactions", "forward_dm", "voice_channels", "temp_channel",
-                            "server_specific", "pidge_water_plant", "remindme",
-                            "random_e_tag", "spying", "random_word"]  # It says it can't find pidge_water_plant, it's lying.
+        self.all_cogs = []  # A list of all cogs in
+        self.active_cogs = []
+
         self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
         self.owner_id = int(os.getenv("OWNER_ID"))
         self.uptime_seconds = self.time_now()
@@ -69,10 +69,9 @@ class MyBot(commands.Bot):
         ]
         self.zws = "\u200b"  # An empty character, used when a field *requires* a value I don't want to give (normally embeds)
 
-        # Any tabulated data should be stored in this database, under their respective table
-        self.db = sqlite3.connect("bot.db")
-        self.cursor = self.db.cursor()
-        self.db_init()
+        # Assigned in start(), as they run on a different thread.
+        self.db = None
+        self.cursor = None  # TODO: Remove references to this and switch to using db.execute
 
     def default_embed(self, title):
         """
@@ -87,6 +86,45 @@ class MyBot(commands.Bot):
 
         return embed
 
+    async def start(self, *args, **kwargs):
+        """Log into discord and begin running commands."""
+        self.db = sqlite3.connect("bot.db")
+        self.cursor = self.db.cursor()
+        self.db_init()
+
+        # Find and load cogs.
+        cogs = list(Path(".\\cogs").glob("**/*.py"))
+        db_cogs = self.db_get("SELECT rowid, * FROM cogs")
+        for cog in cogs:
+            cog_name = str(cog)[:-len(cog.suffix)]
+            cog_name = cog_name.replace("\\", ".")
+            self.all_cogs.append(cog_name)
+
+            # Check if this cog exists in the database
+            load = None
+            for db_cog in db_cogs:
+                if cog == db_cog["cog"]:
+                    load = db_cog["active"]
+
+            # Load cog, or update the database with this new cog.
+            if load is None:
+                # Cog not found in database, add new entry.
+                self.db.execute("INSERT INTO cogs VALUES(?,?)", [cog_name, 1])
+                self.db.commit()
+                self.load_extension(cog_name)
+            elif load:
+                self.load_extension(cog_name)
+
+        await super().start(*args, **kwargs)
+
+    def load_extension(self, name):
+        self.active_cogs.append(name)
+        super().load_extension(name)
+
+    def unload_extension(self, name):
+        self.active_cogs -= name
+        super().unload_extension(name)
+
     def db_init(self):
         """Initializes any important tables in the database if they don't exist."""
         cursor = self.cursor
@@ -98,10 +136,36 @@ class MyBot(commands.Bot):
             "key STRING,"  # The name of the setting.
             "value STRING"  # The value this setting stores.
             ")")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS cogs ("
+            "cog STRING,"  # The path to the cog.
+            "active INTEGER"  # Whether the cog is enabled or not.
+            ")")
         cursor.execute("commit")
 
         # Setting keys:
         # ignore: Ignore a channel, category, user.
+
+    def db_get(self, request, master_dict=False):
+        """Returns a database request in a nice format.
+        Arguments:
+            request - The request to run.
+            master_dict - If set to false, return a dictionary as {key: [all_values]}. Useful for checking entries.
+                Else, return a list as [{key:value,...}, {key:value,...}]. Useful for iteration.
+
+        Returns: See master_dict
+        """
+        search = self.db.execute(request)
+        columns = [name[0] for name in search.description]
+
+        if master_dict:
+            entries = search.fetchall()
+            results = dict(zip(columns, zip(*entries)))
+        else:
+            results = []
+            for entry in search.fetchall():
+                results.append(dict(zip(columns, entry)))
+        return results
 
     def db_read_setting(self, server_id, key, default=None):
         """Fetches all entries for a key from the settings table in the database. Returns default if no entry exists."""
@@ -259,6 +323,14 @@ class MyBot(commands.Bot):
         return user
 
     def _override(self, ctx):
+        """
+        Overrides a command invoke, meaning it will return a user different to the person who invoked it.
+        This should only be called by other functions, such as owner_override or admin_override.
+        The new user is determined either by the "user" integer variable in the message, or by a mention in the message.
+
+        Arguments:
+            ctx - The context variable provided to discord commands
+        """
         user = ctx.author
         if ctx.message.mentions:
             user = ctx.message.mentions[0]
@@ -643,11 +715,6 @@ if __name__ == "__main__":
     handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
     handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
     logger.addHandler(handler)
-
-    # Runs only the listed cogs
-    # TODO: Learn how this works so I can use this in other code things I do, hotswitching modules is really cool.
-    for cog in bot.active_cogs:
-        bot.load_extension(f"cogs.{cog}")
 
 
     @bot.event
