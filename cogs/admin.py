@@ -1,7 +1,7 @@
 import discord
 import re
 from discord.ext import commands
-from random import shuffle, random, randrange, uniform
+from random import shuffle, random, randrange, uniform, choice
 import traceback
 
 class Admin(commands.Cog, name="admin"):
@@ -169,6 +169,20 @@ class Admin(commands.Cog, name="admin"):
         superscript = str.maketrans(alphabet, alphabet_superscript)
 
         await ctx.send(msg.translate(superscript))
+
+    @commands.command(name="randcap", aliases=["rc"])
+    async def random_capitalization(self, ctx):
+        msg = re.search(r"\s(.+)", ctx.message.content)
+        if not msg:
+            await ctx.send("give me something to randomize please im hungry")
+            return
+
+        reply = ""
+        for c in msg.group(1):
+            case = choice((str.upper, str.lower))
+            reply += case(c)
+
+        await ctx.send(reply)
 
     @commands.command(name="big")
     async def make_fullwidth(self, ctx):
