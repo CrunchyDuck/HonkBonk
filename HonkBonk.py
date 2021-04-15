@@ -93,11 +93,11 @@ class MyBot(commands.Bot):
         self.db_init()
 
         # Find and load cogs.
-        cogs = list(Path(".\\cogs").glob("**/*.py"))
+        cogs = list(Path("./cogs").glob("**/*.py"))
         db_cogs = self.db_get("SELECT rowid, * FROM cogs")
         for cog in cogs:
             cog_name = str(cog)[:-len(cog.suffix)]
-            cog_name = cog_name.replace("\\", ".")
+            cog_name = cog_name.replace("/", ".")
             self.all_cogs.append(cog_name)
 
             # Check if this cog exists in the database
