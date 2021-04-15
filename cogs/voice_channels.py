@@ -1,11 +1,21 @@
 import discord
 from discord.ext import commands
 from asyncio import TimeoutError
+from dotenv import load_dotenv
+from os import getenv
+from googleapiclient.discovery import build
+import pytube as pt
+from pytube import exceptions, extract
+import json
+from traceback import print_exc
+import re
+from collections import defaultdict
+import requests
+from datetime import datetime
 
 
 # TODO: Allow HB to play music from youtube, like bots such as Rythm. [in progress]
-# IDEA: Global volume control option to manually boost/lower a song.
-# IDEA: Automatic gain control, based on the peaks of a song.
+# TODO: Navigate song based on YouTube chapters. Can be pulled from description.
 # IDEA: Give HB a bunch of voice clips he's capable of remotely playing, so I can harass people at range.
 class VoiceChannels(commands.Cog, name="voice_channels"):
     prefix = "vc"
@@ -21,6 +31,14 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             "AAAAAdmins": [f"{self.prefix}.{command}" for command in ["join", "leave"]],
         }
 
+        self.api_key = getenv("YT_API_KEY")
+        #self.yt = build("youtube", "v3", developerKey=self.api_key)
+
+        self.vcs = {}  # serverid: vc object
+        self.playlist = defaultdict(list)  # A dictionary of server:list for things to play.
+
+        self.search_settings = {0: {}}  # List of settings for searching within a server. 0=default
+
     @commands.command(name=f"{prefix}.join")
     async def join_vc_cmd(self, ctx):
         await self.join_voice_channel(ctx, True, True)
@@ -30,19 +48,167 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         """Leave the voice channel the bot is in, within this server."""
         if not await self.bot.has_perm(ctx, admin=True): return
         await ctx.guild.change_voice_state(channel=None, self_deaf=True, self_mute=True)
+        self.vcs[ctx.guild.id] = None
         return
 
     @commands.command(name=f"{prefix}.guitar")
     async def play_pretty_guitar(self, ctx):
-        if not await self.bot.has_perm(ctx): return
-        vc = await self.join_voice_channel(ctx, deaf=False, mute=False)
-        if not vc:
-            print(":(")
-            return
+        if not await self.bot.has_perm(ctx, bot_owner=True): return
+        if ctx.guild.id not in self.vcs:
+            vc = await self.join_voice_channel(ctx, deaf=False, mute=False)
+            if not vc:
+                print(":(")
+                return
+        else:
+            vc = self.vcs[ctx.guild.id]
 
         audiosource = "./attachments/pigid.mp3"
-        vc.play(discord.FFmpegPCMAudio(executable="C:\\ffmpeg\\bin\\ffmpeg.exe", source=audiosource))
-        vc.source = discord.PCMVolumeTransformer(vc.source, volume=1)
+        vc.queue(audiosource, "System")
+
+
+    @commands.command(name=f"{prefix}.ytest")
+    async def yttest(self, ctx):
+        if not await self.bot.has_perm(ctx, bot_owner=True): return
+        msg = ctx.message.content
+        vid = self.ignore_error(msg, extract.video_id)
+        playlist = self.ignore_error(msg, extract.playlist_id)
+        search_term = ctx.message.content[10:]
+
+        try:
+            if vid:
+                self.playlist[ctx.guild.id].append(vid)
+            elif playlist:
+                await ctx.send("Not implemented yet >.<")
+                return
+            elif search_term:
+                await ctx.send("w-wait till it's done~~")
+                return
+        except:
+            print_exc()
+            await ctx.send("Whoopsie doopsie! I've done a fucky wucky >//< yell at dukki~~")
+            return
+
+        self.vcs[ctx.guild.id] = await self.join_voice_channel(ctx, deaf=False, mute=False)
+
+    @commands.command(name=f"{prefix}.play")
+    async def play_audio(self, ctx):
+        if not await self.bot.has_perm(ctx, bot_owner=True): return
+        if ctx.guild.id not in self.vcs:
+            await ctx.send("Not in a VC!")
+            return
+
+        audio = self.vcs[ctx.guild.id]
+        audio.play()
+
+    @commands.command(name=f"{prefix}.next")
+    async def play_next(self, ctx):
+        if not await self.bot.has_perm(ctx, bot_owner=True): return
+        if ctx.guild.id not in self.vcs:
+            await ctx.send("Not in a VC!")
+            return
+
+        audio = self.vcs[ctx.guild.id]
+        audio.next()
+
+    @commands.command(name=f"{prefix}.list")
+    async def show_playlist(self, ctx):
+        if not await self.bot.has_perm(ctx, bot_owner=True): return
+        if ctx.guild.id not in self.vcs:
+            await ctx.send("I'm not in a VC!")
+            return
+
+        audio = self.vcs[ctx.guild.id]
+        msg = f"{audio.audio_path}\n"
+        for s in audio.playlist:
+            msg += f"{s.path}\n"
+        await ctx.send(msg)
+
+    @commands.command(name=f"{prefix}.chapter")
+    async def get_video_chapter(self, ctx):
+        if not await self.bot.has_perm(ctx): return
+        msg = ctx.message.content
+        try:
+            vid = extract.video_id(msg)
+        except exceptions.RegexMatchError:
+            await ctx.send("Provide a video URL to get chapters from!")
+            return
+
+        time = re.search(r"time[=\s:]((?:\d+:)?\d{1,2}:\d{2})(?:\s|$)", ctx.message.content)
+        if time:
+            time = time.group(1)
+            if re.match(r"\d+:\d{2}:\d{2}", time):
+                time = datetime.strptime(time, "%H:%M:%S")
+            elif re.match(r"\d{1,2}:\d{2}", time):
+                time = datetime.strptime(time, "%M:%S")
+        else:
+            time = None
+
+        params = {"part": "snippet", "id": vid, "key": self.api_key}
+        description = requests.get("https://www.googleapis.com/youtube/v3/videos", params=params).json()["items"][0]["snippet"]["description"]
+
+        first_timestamp = re.search(r"[^\n]*?00:00", description)
+        if not first_timestamp:
+            await ctx.send("Cannot find timestamps.")
+            return
+
+        description = description[first_timestamp.start(0):]
+        return_val = ""
+        for m in re.finditer(r"[^\n]*?([^\s]*(?:\d+:)?\d{1,2}:\d{2}[^\s]*)[^\n]*", description):
+            if time:
+                chapter_name = m.group(0).replace(m.group(1), "")
+                print(m.group(1))
+                chapter_timestamp = re.search(r"((?:\d+:)?\d{1,2}:\d{2})", m.group(1)).group(1)
+
+                if re.match(r"\d+:\d{2}:\d{2}", chapter_timestamp):
+                    chapter_time = datetime.strptime(chapter_timestamp, "%H:%M:%S")
+                elif re.match(r"\d{1,2}:\d{2}", chapter_timestamp):
+                    chapter_time = datetime.strptime(chapter_timestamp, "%M:%S")
+
+                if chapter_time > time:
+                    # Current chapter found
+                    break
+                else:
+                    return_val = f"{chapter_name} ({chapter_timestamp})"
+
+            else:
+                # Return all chapters
+                return_val += m.group(0) + "\n"
+
+        await ctx.send(return_val)
+
+    @commands.command(name=f"{prefix}.chapter.help")
+    async def get_video_chapter_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Get a chapter from a timestamp in a video!
+
+        Arguments:
+            video: The url of the video.
+            (optional) time: The timestamp, provided something like 0:00. Otherwise, display all chapters.
+
+        Examples:
+            c.vc.chapter <https://www.youtube.com/watch?v=P196hEuA_Xc> time=11:05
+            c.vc.chapter v=2JsYHpiH2xs time 1:05:39```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
+
+    @staticmethod
+    def ignore_error(val, method, default=None):
+        """Lets me make my variable assignment one line long."""
+        try:
+            return method(val)
+        except:
+            return default
+
+    def youtubetest(self):
+        s = self.yt.search().list(
+            part="snippet", q="furry"
+        ).execute()
+        print(json.dumps(s, indent=2))
+
+
 
 
 
@@ -213,7 +379,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             print("opus not loaded some how??")
 
         await ctx.guild.change_voice_state(channel=channel, self_deaf=deaf, self_mute=mute)
-        return vc_conn
+        if vc_conn:
+            self.vcs[ctx.guild.id] = ServerAudio(vc_conn, ctx.guild.id)
+            return self.vcs[ctx.guild.id]
 
     def init_db(self, cursor):
         cursor.execute("begin")
@@ -224,6 +392,44 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             "end_time INTEGER"  # The time the user should be removed from the VC.
             ")")
         cursor.execute("commit")
+
+
+class ServerAudio():
+    def __init__(self, vc, server_id):
+        self.server_id = server_id
+        self.vc = vc
+        self.playlist = []  # A list of DiscordPlaylist items
+        self.current_audio = None
+        self.audio_path = None
+
+    def next(self, error=None):
+        # Remove audio_path from PC
+
+        # Get next item in playlist
+        self.current_audio, self.audio_path = self.playlist.pop().get_audio()
+        self.play()
+
+    def play(self):
+        if self.current_audio:
+            self.vc.play(self.current_audio, after=self.next)
+        elif self.playlist:
+            self.next()
+
+    def pause(self):
+        self.vc.pause(self.current_audio)
+
+    def queue(self, path, source):
+        self.playlist.append(self.DiscordPlaylist(path, source))
+
+    class DiscordPlaylist():
+        def __init__(self, path, source):
+            self.path = path
+            self.source = source  # "YouTube" or "System"
+
+        def get_audio(self):
+            """Returns an audio source for discord to play, and the path on the PC"""
+            if self.source == "System":
+                return discord.FFmpegPCMAudio(executable="C:\\ffmpeg\\bin\\ffmpeg.exe", source=self.path), self.path
 
 
 def setup(bot):
