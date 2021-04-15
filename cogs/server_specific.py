@@ -329,7 +329,8 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self_refer = re.search(r"^i['’]?m(.+)", msg, re.I)
         if self_refer:
             try:
-                await message.author.edit(reason="they said \"I'm\"", nick=self_refer.group(1)[:32])
+                new_name = re.search(r"(.{1,32})(\s|$)", self_refer.group(1)).group(1)  # Breaks it at the last full word.
+                await message.author.edit(reason="they said \"I'm\"", nick=new_name)
             except:
                 pass
 

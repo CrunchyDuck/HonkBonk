@@ -68,7 +68,7 @@ class Admin(commands.Cog, name="admin"):
             "i don't knowo wight now >>": 100
         })
 
-        self.bot.core_help_text["General"] += ["small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
+        self.bot.core_help_text["General"] += ["randcap", "small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
         self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
 
     @commands.command(name=f"timestamp")
@@ -180,7 +180,7 @@ class Admin(commands.Cog, name="admin"):
         reply = ""
         for c in msg.group(1):
             case = choice((str.upper, str.lower))
-            reply += case(c)
+            reply += case(c)  # Pycharm doesn't recognize what I'm doing here.
 
         await ctx.send(reply)
 
