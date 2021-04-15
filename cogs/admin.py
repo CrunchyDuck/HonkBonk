@@ -570,6 +570,20 @@ class Admin(commands.Cog, name="admin"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
+    @commands.command(name="randcap.help", aliases=["rc.help"])
+    async def random_cap_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        docstring = """
+        ```Make a sentence randoms :)
+        Aliases: randcap, rc
+
+        Example:
+            c.randcap i am a faiwy
+            c.rc OWO WHATS THIS```
+        """
+        docstring = self.bot.remove_indentation(docstring)
+        await ctx.send(docstring)
+
     @commands.command(name="num.help")
     async def randnum_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
