@@ -28,9 +28,8 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         endtime = self.bot.time_from_now(seconds=time)
         to_remind = self.bot.admin_override(ctx)
 
-        repeat_interval = self.bot.time_from_string(reminder["interval"])
-        if repeat_interval and repeat_interval < 300:  # Repeat must be at least 5 minutes if not 0.
-            repeat_interval = 300
+        repeat_interval = min(86400 * 30, reminder["interval"])  # 1 month limit.
+        repeat_interval = self.bot.time_from_string(repeat_interval)
 
         self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?,?)", [reminder["msg"], to_remind.id, endtime, repeat_interval])
         self.bot.cursor.execute("commit")
@@ -87,27 +86,29 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             self.bot.cursor.execute("commit")
             await ctx.send("Reminder deleted.")
 
-
     # Timed command
     async def remind_time(self, time_now):
-        self.bot.cursor.execute("SELECT rowid, * FROM remindme ORDER BY time ASC")
-        target = self.bot.cursor.fetchone()
-        if target:  # TODO: Switch this to a while loop, so that multiple can be run every tick?
-            if time_now > target[3]:
-                user = self.bot.get_user(target[2])
-                try:
-                    await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
-                except AttributeError:
-                    print(f"Could not message {target[1]}")
-                    pass
+        while True:
+            self.bot.cursor.execute("SELECT rowid, * FROM remindme ORDER BY time ASC")
+            target = self.bot.cursor.fetchone()
+            if target:  # TODO: Switch this to a while loop, so that multiple can be run every tick?
+                if time_now > target[3]:
+                    user = self.bot.get_user(target[2])
+                    try:
+                        await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
+                    except AttributeError:
+                        print(f"Could not message {target[1]}")
+                        pass
 
-                if not target[4]:  # Repeat reminders.
-                    self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={target[0]}")
+                    if not target[4]:  # Repeat reminders.
+                        self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={target[0]}")
+                    else:
+                        new_time = target[4] + self.bot.time_now()
+                        self.bot.cursor.execute(f"UPDATE remindme SET time={new_time} WHERE rowid={target[0]}")
+
+                    self.bot.cursor.execute("commit")
                 else:
-                    new_time = target[4] + self.bot.time_now()
-                    self.bot.cursor.execute(f"UPDATE remindme SET time={new_time} WHERE rowid={target[0]}")
-
-                self.bot.cursor.execute("commit")
+                    break
 
     @commands.command(name="remind.help", aliases=["remindme.help"])
     async def remind_help(self, ctx):
