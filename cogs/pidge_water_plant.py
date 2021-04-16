@@ -8,8 +8,6 @@ class herbert_live(commands.Cog, name="harass_pidge"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.water_plant_time)
 
-        self.bot.core_help_text["Admins OwOnly"] += ["pidge"]
-
     @commands.command(name="pidge")
     async def harass_pidge(self, ctx):
         if not await self.bot.has_perm(ctx, admin=True, dm=True): return
@@ -140,4 +138,9 @@ class herbert_live(commands.Cog, name="harass_pidge"):
 
 
 def setup(bot):
+    bot.core_help_text["Admins OwOnly"] += ["pidge"]
     bot.add_cog(herbert_live(bot))
+
+def teardown(bot):
+    bot.core_help_text["Admins OwOnly"].remove("pidge")
+    bot.remove_cog(herbert_live(bot))

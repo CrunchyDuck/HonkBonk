@@ -12,6 +12,8 @@ from random import random
 import traceback
 from math import trunc
 from collections import defaultdict
+import user_interface
+import threading
 from pathlib import Path
 
 
@@ -45,10 +47,14 @@ class MyBot(commands.Bot):
     def __init__(self, bot_prefix, **kwargs):
         super().__init__(bot_prefix, **kwargs)  # This just runs the original commands.Bot __init__ function.
         # The cogs to load on the bot.
-        self.all_cogs = []  # A list of all cogs in
-        self.active_cogs = []
+        self.all_cogs = {}  # A list of all cogs found in files.
+        self.active_cogs = {}  # A list of all currently loaded cogs
 
-        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+        self.timed_commands = [self.toggle_cog]  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+        self.UI_tabs = []  # A list of functions that are used in user_interface to generate tabs for specific cogs.
+        self.BotUI = None
+        self.cog_queue = []
+
         self.owner_id = int(os.getenv("OWNER_ID"))
         self.uptime_seconds = self.time_now()
         self.uptime_datetime = datetime.now()
@@ -86,6 +92,11 @@ class MyBot(commands.Bot):
 
         return embed
 
+    async def toggle_cog(self, time_now):
+        while self.cog_queue:
+            c = self.cog_queue.pop(0)
+            c[1](c[0])
+
     async def start(self, *args, **kwargs):
         """Log into discord and begin running commands."""
         self.db = sqlite3.connect("bot.db")
@@ -94,16 +105,17 @@ class MyBot(commands.Bot):
 
         # Find and load cogs.
         cogs = list(Path("./cogs").glob("**/*.py"))
-        db_cogs = self.db_get("SELECT rowid, * FROM cogs")
+        db_cogs = self.db_get(self.db, "SELECT rowid, * FROM cogs")
         for cog in cogs:
             cog_name = str(cog)[:-len(cog.suffix)]
-            cog_name = cog_name.replace("/", ".")
-            self.all_cogs.append(cog_name)
+            cog_name = cog_name.replace("\\", ".")  # windows.
+            cog_name = cog_name.replace("/", ".")  # everything else
+            self.all_cogs[cog_name] = self.time_now()
 
             # Check if this cog exists in the database
             load = None
             for db_cog in db_cogs:
-                if cog == db_cog["cog"]:
+                if cog_name == db_cog["cog"]:
                     load = db_cog["active"]
 
             # Load cog, or update the database with this new cog.
@@ -114,15 +126,15 @@ class MyBot(commands.Bot):
                 self.load_extension(cog_name)
             elif load:
                 self.load_extension(cog_name)
-
+        self.BotUI.awaiting = False
         await super().start(*args, **kwargs)
 
     def load_extension(self, name):
-        self.active_cogs.append(name)
+        self.active_cogs[name] = self.time_now()
         super().load_extension(name)
 
     def unload_extension(self, name):
-        self.active_cogs -= name
+        self.active_cogs.pop(name)
         super().unload_extension(name)
 
     def db_init(self):
@@ -145,27 +157,6 @@ class MyBot(commands.Bot):
 
         # Setting keys:
         # ignore: Ignore a channel, category, user.
-
-    def db_get(self, request, master_dict=False):
-        """Returns a database request in a nice format.
-        Arguments:
-            request - The request to run.
-            master_dict - If set to false, return a dictionary as {key: [all_values]}. Useful for checking entries.
-                Else, return a list as [{key:value,...}, {key:value,...}]. Useful for iteration.
-
-        Returns: See master_dict
-        """
-        search = self.db.execute(request)
-        columns = [name[0] for name in search.description]
-
-        if master_dict:
-            entries = search.fetchall()
-            results = dict(zip(columns, zip(*entries)))
-        else:
-            results = []
-            for entry in search.fetchall():
-                results.append(dict(zip(columns, entry)))
-        return results
 
     def db_read_setting(self, server_id, key, default=None):
         """Fetches all entries for a key from the settings table in the database. Returns default if no entry exists."""
@@ -360,6 +351,28 @@ class MyBot(commands.Bot):
             embed.description += f"**{cat_name}**\n```{cat_commands} ```\n"
 
         return embed
+
+    @staticmethod
+    def db_get(db, request, *args, master_dict=False):
+        """Returns a database request in a nice format.
+        Arguments:
+            request - The request to run.
+            master_dict - If set to false, return a dictionary as {key: [all_values]}. Useful for checking entries.
+                Else, return a list as [{key:value,...}, {key:value,...}]. Useful for iteration.
+
+        Returns: See master_dict
+        """
+        search = db.execute(request, args)
+        columns = [name[0] for name in search.description]
+
+        if master_dict:
+            entries = search.fetchall()
+            results = dict(zip(columns, zip(*entries)))
+        else:
+            results = []
+            for entry in search.fetchall():
+                results.append(dict(zip(columns, entry)))
+        return results
 
     @staticmethod
     def get_variable(string, key=None, type=None, pattern=None, default=None):
@@ -669,6 +682,7 @@ def allgroups(matchobject):
 
     return string
 
+
 # IDEA: A function for the bot that will take an image, and turn it into a Waveform/vectorscope/histogram analysis because they look fucking rad
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
@@ -709,6 +723,9 @@ if __name__ == "__main__":
     bot = MyBot(bot_prefix, intents=intents)
     bot.remove_command("help")  # the default help command is ugly and I maintain a help in my server. Also lets me control what's shown.
 
+    UI = user_interface.BotUI(bot)
+    bot.BotUI = UI  # Give the bot a reference to the UI object.
+
     # Set up logger. Modified docs version.
     logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
@@ -736,12 +753,17 @@ if __name__ == "__main__":
         else:
             raise error
 
+    loop = asyncio.get_event_loop()  # TODO: Run this loop as a background process, so the UI is the only open process?
+    asyncio.ensure_future(timed_loop(bot))
+    asyncio.ensure_future(bot.start(TOKEN))
 
-    loop = asyncio.get_event_loop()
+    t_bot = threading.Thread(target=loop.run_forever)
+    t_ui = threading.Thread(target=UI.start)
     try:
-        asyncio.ensure_future(timed_loop(bot))
-        asyncio.ensure_future(bot.start(TOKEN))
-        loop.run_forever()
+        t_bot.start()
+        t_ui.start()
+        t_bot.join()
+        t_ui.join()
     except KeyboardInterrupt:
         loop.run_until_complete(bot.logout())
     finally:

@@ -17,7 +17,6 @@ class RoleControl(commands.Cog, name="roles"):
         self.bot.timed_commands.append(self.timed_role_end)
         self.init_db(bot.cursor)
 
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
             "General": [f"{self.prefix}.{command}" for command in ["vanity", "delete", "info"]],
             "a-admins~": ["role.apply", "role.remove"]
@@ -587,4 +586,9 @@ class RoleControl(commands.Cog, name="roles"):
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["role"]
     bot.add_cog(RoleControl(bot))
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("role")
+    bot.remove_cog(RoleControl(bot))

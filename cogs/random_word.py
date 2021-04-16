@@ -11,7 +11,6 @@ class RandomWord(commands.Cog, name="RandomWord"):
     def __init__(self, bot):
         self.bot = bot
         #self.bot.core_help_text["modules"] += [self.prefix]
-        self.bot.core_help_text["General"] += ["word", "madlib"]
 
     @commands.command(name=f"word")
     async def get_random_word(self, ctx):
@@ -109,4 +108,11 @@ class RandomWord(commands.Cog, name="RandomWord"):
 
 
 def setup(bot):
+    bot.core_help_text["General"] += ["word", "madlib"]
     bot.add_cog(RandomWord(bot))
+
+
+def teardown(bot):
+    for l in ["word", "madlib"]:
+        bot.core_help_text["General"].remove(l)
+    bot.remove_cog(RandomWord(bot))

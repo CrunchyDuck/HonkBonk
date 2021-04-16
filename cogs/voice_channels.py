@@ -25,7 +25,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.sleep_timer_up)
 
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
             "General": ["vc.sleep", "vc.guitar"],
             "AAAAAdmins": [f"{self.prefix}.{command}" for command in ["join", "leave"]],
@@ -156,7 +155,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         for m in re.finditer(r"[^\n]*?([^\s]*(?:\d+:)?\d{1,2}:\d{2}[^\s]*)[^\n]*", description):
             if time:
                 chapter_name = m.group(0).replace(m.group(1), "")
-                print(m.group(1))
                 chapter_timestamp = re.search(r"((?:\d+:)?\d{1,2}:\d{2})", m.group(1)).group(1)
 
                 if re.match(r"\d+:\d{2}:\d{2}", chapter_timestamp):
@@ -433,4 +431,10 @@ class ServerAudio():
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["vc"]
     bot.add_cog(VoiceChannels(bot))
+
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("vc")
+    bot.remove_cog(VoiceChannels(bot))

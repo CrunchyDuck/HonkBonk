@@ -12,8 +12,6 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         self.init_db(self.bot.cursor)
         self.bot.timed_commands.append(self.remind_time)
 
-        self.bot.core_help_text["General"] += ["remind", "reminders"]
-
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -201,4 +199,12 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
 
 def setup(bot):
+    for help in ["remind", "reminders"]:
+        bot.core_help_text["General"] += [help]
     bot.add_cog(remindme(bot))
+
+
+def teardown(bot):
+    for help in ["remind", "reminders"]:
+        bot.core_help_text["General"].remove(help)
+    bot.remove_cog(remindme(bot))

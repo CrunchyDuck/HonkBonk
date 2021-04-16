@@ -68,9 +68,6 @@ class Admin(commands.Cog, name="admin"):
             "i don't knowo wight now >>": 100
         })
 
-        self.bot.core_help_text["General"] += ["randcap", "small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]
-        self.bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
-
     @commands.command(name=f"timestamp")
     async def timestamp(self, ctx):
         """
@@ -808,4 +805,17 @@ class Admin(commands.Cog, name="admin"):
 
 
 def setup(bot):
+    bot.core_help_text["General"] += [
+        "randcap", "small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime",
+        "pfp", "uwu", "8ball"]
+    bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
+
     bot.add_cog(Admin(bot))
+
+def teardown(bot):
+    for l in ["randcap", "small", "num", "timestamp", "id", "shuffle", "pat", "kick", "uptime", "pfp", "uwu", "8ball"]:
+        bot.core_help_text["General"].remove(l)
+    for l in ["dm", "speak", "ignore", "ignore.none", "ignore.all"]:
+        bot.core_help_text["Admins OwOnly"].remove(l)
+
+    bot.remove_cog(Admin(bot))

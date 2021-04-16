@@ -62,7 +62,6 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
         self.bot.timed_commands.append(self.room_timeout)
 
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
             "General": [f"{self.prefix}.{command}" for command in ["close", "time", "owner", "open", "reopen"]],
             "addymins": [f"{self.prefix}.order", f"{self.prefix}.settings"]
@@ -604,5 +603,11 @@ class TempChannel(commands.Cog, name="temp_channel"):
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["room"]
     bot.add_cog(TempChannel(bot))
+
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("room")
+    bot.remove_cog(TempChannel(bot))
 

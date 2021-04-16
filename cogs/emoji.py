@@ -17,7 +17,6 @@ class Emoji(commands.Cog, name="emoji"):
         self.bot = bot
         self.init_database(bot.cursor)
 
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
             "Commands": [f"{self.prefix}.{command}" for command in ["push", "pop", "owner", "info"]]
         }
@@ -384,4 +383,9 @@ class Emoji(commands.Cog, name="emoji"):
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["emoji"]
     bot.add_cog(Emoji(bot))
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("emoji")
+    bot.remove_cog(Emoji(bot))

@@ -14,7 +14,6 @@ class sinner(commands.Cog, name="sinner"):
         # self.db_fill(category=0, post_limit=1000)
         # self.db_fill(category=4, post_limit=400)
         # self.db_fill(category=5, post_limit=300)
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
             "owo": ["e.idea", "e.sentence", "e.tag_count", "e.search"],
         }
@@ -275,4 +274,9 @@ class sinner(commands.Cog, name="sinner"):
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["e"]
     bot.add_cog(sinner(bot))
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("e")
+    bot.remove_cog(sinner(bot))

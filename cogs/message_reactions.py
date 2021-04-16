@@ -96,7 +96,6 @@ class Reaction(commands.Cog, name="message_reactions"):
         self.db_init()
         self.refresh_database()
 
-        self.bot.core_help_text["modules"] += [self.prefix]
         self.help_text = {
           "General": [f"{self.prefix}.{command}" for command in ["chance", "list", "remove", "add"]],
           "admin boys only": [f"{self.prefix}.triggered"]
@@ -594,4 +593,10 @@ class Reaction(commands.Cog, name="message_reactions"):
 
 
 def setup(bot):
+    bot.core_help_text["modules"] += ["react"]
     bot.add_cog(Reaction(bot))
+
+
+def teardown(bot):
+    bot.core_help_text["modules"].remove("react")
+    bot.remove_cog(Reaction(bot))

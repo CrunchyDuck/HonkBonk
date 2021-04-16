@@ -26,9 +26,6 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             630930243464462346: 100,  # pika
         })
 
-        self.bot.core_help_text["General"] += ["asight", "dj"]
-        self.bot.core_help_text["Admins OwOnly"] += ["deskcheck"]
-
     @commands.command(name="dj")
     async def dj(self, ctx):
         if not await self.bot.has_perm(ctx): return
@@ -343,5 +340,15 @@ class ServerSpecific(commands.Cog, name="server_specific"):
             ")")
         cursor.execute("commit")
 
+
 def setup(bot):
+    bot.core_help_text["General"] += ["asight", "dj"]
+    bot.core_help_text["Admins OwOnly"] += ["deskcheck"]
     bot.add_cog(ServerSpecific(bot))
+
+
+def teardown(bot):
+    for l in ["asight", "dj"]:
+        bot.core_help_text["General"].remove(l)
+    bot.core_help_text["Admins OwOnly"].remove("deskcheck")
+    bot.remove_cog(ServerSpecific(bot))
