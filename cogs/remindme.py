@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 class remindme(commands.Cog, name="tatsu_is_bad"):
-    r_interval = re.compile(r"(?:^)(.+?) yreve")  # Gets the interval, if it exists.
-    r_in_time = re.compile(r"(?:yreve |^)(.+?) ni")
+    r_interval = re.compile(r"(?:^)(\d.+?) yreve")  # Gets the interval, if it exists.
+    r_in_time = re.compile(r"(?:yreve |^)(\d.+?) ni")
 
     def __init__(self, bot):
         self.bot = bot
@@ -15,25 +15,27 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-
         reminder = self.segment_command(ctx.message.content)
-        if not reminder["time"] and not reminder["interval"]:
-            await ctx.send("Provide me with a time to annoy you.")
-            return
-
-        time = self.bot.time_from_string(reminder["time"])  # Convert the time from the command into seconds.
-        time = min(86400 * 30, time)  # Limit to 1 month.
-        endtime = self.bot.time_from_now(seconds=time)
         to_remind = self.bot.admin_override(ctx)
 
-        repeat_interval = self.bot.time_from_string(reminder["interval"])
-        repeat_interval = min(86400 * 30, repeat_interval)  # 1 month limit.
+        if not reminder["time"] and not reminder["interval"]:
+            reply = "Will keep that safe for you :)"
+            self.bot.db_do(self.bot.db, "INSERT INTO remindme VALUES(?,?,?,?,?)",
+                           reminder["msg"], to_remind.id, 0, 0, 0)
+        else:
+            time = self.bot.time_from_string(reminder["time"])  # Convert the time from the command into seconds.
+            time = min(86400 * 30, time)  # Limit to 1 month.
+            endtime = self.bot.time_from_now(seconds=time)
 
-        self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?,?)", [reminder["msg"], to_remind.id, endtime, repeat_interval])
-        self.bot.cursor.execute("commit")
+            repeat_interval = self.bot.time_from_string(reminder["interval"])
+            repeat_interval = min(86400 * 30, repeat_interval)  # 1 month limit.
 
-        how_long = self.bot.time_to_string(seconds=time)
-        await ctx.send(f"**:alarm_clock:  |  Got it! I'll remind you in {how_long}**")
+            self.bot.db_do(self.bot.db, "INSERT INTO remindme VALUES(?,?,?,?,?)",
+                           reminder["msg"], to_remind.id, endtime, repeat_interval, 1)
+
+            how_long = self.bot.time_to_string(seconds=time)
+            reply = f"**:alarm_clock:  |  Got it! I'll remind you in {how_long}**"
+        await ctx.send(reply)
 
     @commands.command(name="reminders")
     async def my_reminders(self, ctx):
@@ -41,70 +43,55 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         user = self.bot.owner_override(ctx).id
         message = ""
 
-        at_time = self.bot.get_variable(ctx.message.content, "at", type="keyword", default=False)
         remove_id = int(self.bot.get_variable(ctx.message.content, "remove", type="int", default=0))
 
         # Return a list of reminders
         if not remove_id:
-            c = self.bot.cursor
-            c.execute("SELECT rowid, * FROM remindme WHERE user_id=?", [user])
-
-            for entry in c.fetchall():
-                if at_time:
-                    time = datetime.fromtimestamp(entry[3]).strftime("%Y-%m-%d %H:%M:%S GMT")
-                    time = f"{time}"
-                    message += f"{entry[0]}: {time}: {entry[1]}\n"
-                else:
-                    time = self.bot.time_to_string(seconds=entry[3] - self.bot.time_now())
-                    time = f" ------ in {time}"
-                    if entry[4]:
-                        reminder_amount = self.bot.time_to_string(seconds=entry[4])
-                        time += f" (every {reminder_amount})"
-
-                    message += f"{entry[0]}: {entry[1]}{time}\n"
-
+            entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE user_id=?", user)
+            for entry in entries:
+                message += f"{entry['rowid']}: {entry['message']}"
+                if entry["timed"]:
+                    time = self.bot.time_to_string(seconds=entry["time"] - self.bot.time_now())
+                    message += f" ------ in {time}"
+                    if entry["interval"]:
+                        reminder_amount = self.bot.time_to_string(seconds=entry["interval"])
+                        message += f" (every {reminder_amount})"
             if not message:
                 message = "No reminders!"
 
             await ctx.send(self.bot.escape_message(message))
         # Remove reminder.
         else:
-            # Check the user actually owns reminder emote.
-            self.bot.cursor.execute(f"SELECT user_id FROM remindme WHERE rowid={remove_id}")
-            result = self.bot.cursor.fetchone()
-            if result:
-                if user != result[0]:
+            # Check the user actually owns reminder.
+            entry = self.bot.db_get(self.bot.db, f"SELECT user_id FROM remindme WHERE rowid=?", remove_id)[0]
+            if entry:
+                if user != entry["user_id"]:
                     await ctx.send("You don't own this reminder.")
                     return
             else:
                 await ctx.send("No reminder with this id!")
                 return
 
-            self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={remove_id}")
-            self.bot.cursor.execute("commit")
+            self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", remove_id)
             await ctx.send("Reminder deleted.")
 
     # Timed command
     async def remind_time(self, time_now):
-        while True:
-            self.bot.cursor.execute("SELECT rowid, * FROM remindme ORDER BY time ASC")
-            target = self.bot.cursor.fetchone()
-            if target:  # TODO: Switch this to a while loop, so that multiple can be run every tick?
-                if time_now > target[3]:
-                    user = self.bot.get_user(target[2])
+            entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE timed=1 ORDER BY time ASC")
+            for target in entries:
+                if time_now > target["time"]:
+                    user = self.bot.get_user(target["user_id"])
                     try:
-                        await user.send(f"**:alarm_clock: Reminder:** {target[1]}")
+                        await user.send(f"**:alarm_clock: Reminder:** {target['message']}")
                     except AttributeError:
-                        print(f"Could not message {target[1]}")
+                        print(f"Could not message {target['user_id']}")
                         pass
 
                     if not target[4]:  # Repeat reminders.
-                        self.bot.cursor.execute(f"DELETE FROM remindme WHERE rowid={target[0]}")
+                        self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", target["rowid"])
                     else:
                         new_time = target[4] + self.bot.time_now()
-                        self.bot.cursor.execute(f"UPDATE remindme SET time={new_time} WHERE rowid={target[0]}")
-
-                    self.bot.cursor.execute("commit")
+                        self.bot.db_do(self.bot.db, f"UPDATE remindme SET time=? WHERE rowid=?", new_time, target["row_id"])
                 else:
                     break
 
@@ -118,12 +105,12 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             
         Arguments:
             in - How long until the first reminder
-            every - How regularly to remind you of this. Omit for only once. Has to be after "in" argument.
+            every - How regularly to remind you of this. Should be placed after "in" if it exists.
         
         Examples:
-            c.remind owo in 0.5 minutes
+            c.remind owo
             c.remindme you're cool somewhere in there in 1 day
-            c.remind wake up time in 2 hours 10 minutes every 24 hours
+            c.remind wake up time in 2 hours 10 minutes every 24.5 hours
             c.remindme dummy thicc every 10 hours```
         """
         docstring = self.bot.remove_indentation(docstring)
@@ -137,7 +124,6 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         
         Arguments:
             remove - Delete the reminder with the provided ID. ID is the leftmost value in the reminders table.
-            in - Change display format for reminders.
         
         Examples:
             c.reminders
@@ -188,13 +174,26 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
     def init_db(self, cursor):
         cursor.execute("begin")
+        cursor.execute('DROP TABLE remindme')
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS remindme ("
             "message STRING,"  # What to remind them of.
             "user_id INTEGER,"  # Who to remind
             "time INTEGER,"  # When to remind them
-            "interval INTEGER"  # For repeated reminders, how regularly to remind.
+            "interval INTEGER,"  # For repeated reminders, how regularly to remind.
+            "timed INTEGER"  # 0 if this reminder does not use times.
             ")")
+        # Update table if old version is in use.
+        cursor.execute("PRAGMA table_info(remindme)")
+        table_info = cursor.fetchall()
+        column_exists = False
+        for column in table_info:
+            if column[1] == "timed":
+                column_exists = True
+                break
+        if not column_exists:
+            cursor.execute("ALTER TABLE remindme ADD COLUMN timed INTEGER")
+
         cursor.execute("commit")
 
 
