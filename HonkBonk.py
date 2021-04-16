@@ -362,7 +362,7 @@ class MyBot(commands.Bot):
 
         Returns: See master_dict
         """
-        search = db.execute(request, args)
+        search = db.execute(request, args)  # SQLite3 request.
         columns = [name[0] for name in search.description]
 
         if master_dict:
@@ -373,6 +373,17 @@ class MyBot(commands.Bot):
             for entry in search.fetchall():
                 results.append(dict(zip(columns, entry)))
         return results
+
+    @staticmethod
+    def db_do(db, request, *args):
+        """Perform an SQLite3 query, then commit the change."""
+        db.execute(request, args)
+        db.execute("commit")
+
+    @staticmethod
+    def remove_invoke(message):
+        """Removes the invoking call from a message using RegEx."""
+        return re.sub("(c\.[^\s]+)", "", message, count=1)
 
     @staticmethod
     def get_variable(string, key=None, type=None, pattern=None, default=None):
@@ -430,7 +441,7 @@ class MyBot(commands.Bot):
 
         m = message
         m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
-        m = m.replace("@", "\\@")
+        m = m.replace("@", "@\u200b")
         m = m.replace("@everyone", f"@\u200beveryone")
         return m
 
