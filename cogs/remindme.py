@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 class remindme(commands.Cog, name="tatsu_is_bad"):
-    r_interval = re.compile(r"(?:^)(\d.+?) yreve")  # Gets the interval, if it exists.
-    r_in_time = re.compile(r"(?:yreve |^)(\d.+?) ni")
+    r_interval = re.compile(r"(?:^)(.+?\d) yreve")  # Gets the interval, if it exists.
+    r_in_time = re.compile(r"(?:yreve |^)(.+?\d) ni")
 
     def __init__(self, bot):
         self.bot = bot
@@ -49,7 +49,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         if not remove_id:
             entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE user_id=?", user)
             for entry in entries:
-                message += f"{entry['rowid']}: {entry['message']}"
+                message += f"\n{entry['rowid']}: {entry['message']}"
                 if entry["timed"]:
                     time = self.bot.time_to_string(seconds=entry["time"] - self.bot.time_now())
                     message += f" ------ in {time}"
@@ -87,11 +87,11 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
                         print(f"Could not message {target['user_id']}")
                         pass
 
-                    if not target[4]:  # Repeat reminders.
+                    if not target["interval"]:  # Repeat reminders.
                         self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", target["rowid"])
                     else:
-                        new_time = target[4] + self.bot.time_now()
-                        self.bot.db_do(self.bot.db, f"UPDATE remindme SET time=? WHERE rowid=?", new_time, target["row_id"])
+                        new_time = target["interval"] + self.bot.time_now()
+                        self.bot.db_do(self.bot.db, f"UPDATE remindme SET time=? WHERE rowid=?", new_time, target["rowid"])
                 else:
                     break
 
