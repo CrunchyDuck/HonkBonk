@@ -26,8 +26,8 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         endtime = self.bot.time_from_now(seconds=time)
         to_remind = self.bot.admin_override(ctx)
 
-        repeat_interval = min(86400 * 30, reminder["interval"])  # 1 month limit.
-        repeat_interval = self.bot.time_from_string(repeat_interval)
+        repeat_interval = self.bot.time_from_string(reminder["interval"])
+        repeat_interval = min(86400 * 30, repeat_interval)  # 1 month limit.
 
         self.bot.cursor.execute("INSERT INTO remindme VALUES(?,?,?,?)", [reminder["msg"], to_remind.id, endtime, repeat_interval])
         self.bot.cursor.execute("commit")
