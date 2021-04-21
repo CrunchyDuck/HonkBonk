@@ -60,7 +60,7 @@ class TempChannel(commands.Cog, name="temp_channel"):
             "<https://youtu.be/P8RHDid1th4>\nyeah im putting my mix in here what you gonna do about it xD ": 10,
         })
 
-        self.bot.timed_commands.append(self.room_timeout)
+        self.bot.timed_commands.append([self.room_timeout, 60])
 
         self.help_text = {
             "General": [f"{self.prefix}.{command}" for command in ["close", "time", "owner", "open", "reopen"]],

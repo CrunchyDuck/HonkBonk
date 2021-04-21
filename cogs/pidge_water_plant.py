@@ -6,7 +6,7 @@ class herbert_live(commands.Cog, name="harass_pidge"):
     def __init__(self, bot):
         self.bot = bot
         self.init_db(self.bot.cursor)
-        self.bot.timed_commands.append(self.water_plant_time)
+        self.bot.timed_commands.append([self.water_plant_time, 60])
 
     @commands.command(name="pidge")
     async def harass_pidge(self, ctx):

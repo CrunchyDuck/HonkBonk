@@ -23,7 +23,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     def __init__(self, bot):
         self.bot = bot
         self.init_db(self.bot.cursor)
-        self.bot.timed_commands.append(self.sleep_timer_up)
+        self.bot.timed_commands.append([self.sleep_timer_up, 60])
 
         self.help_text = {
             "General": ["vc.sleep", "vc.guitar"],

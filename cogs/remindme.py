@@ -10,7 +10,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     def __init__(self, bot):
         self.bot = bot
         self.init_db(self.bot.cursor)
-        self.bot.timed_commands.append(self.remind_time)
+        self.bot.timed_commands.append([self.remind_time, 1])
 
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
@@ -77,23 +77,23 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
     # Timed command
     async def remind_time(self, time_now):
-            entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE timed=1 ORDER BY time ASC")
-            for target in entries:
-                if time_now > target["time"]:
-                    user = self.bot.get_user(target["user_id"])
-                    try:
-                        await user.send(f"**:alarm_clock: Reminder:** {target['message']}")
-                    except AttributeError:
-                        print(f"Could not message {target['user_id']}")
-                        pass
+        entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE timed=1 ORDER BY time ASC")
+        for target in entries:
+            if time_now > target["time"]:
+                user = self.bot.get_user(target["user_id"])
+                try:
+                    await user.send(f"**:alarm_clock: Reminder:** {target['message']}")
+                except AttributeError:
+                    print(f"Could not message {target['user_id']}")
+                    pass
 
-                    if not target["interval"]:  # Repeat reminders.
-                        self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", target["rowid"])
-                    else:
-                        new_time = target["interval"] + self.bot.time_now()
-                        self.bot.db_do(self.bot.db, f"UPDATE remindme SET time=? WHERE rowid=?", new_time, target["rowid"])
+                if not target["interval"]:  # Repeat reminders.
+                    self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", target["rowid"])
                 else:
-                    break
+                    new_time = target["interval"] + self.bot.time_now()
+                    self.bot.db_do(self.bot.db, f"UPDATE remindme SET time=? WHERE rowid=?", new_time, target["rowid"])
+            else:
+                break
 
     @commands.command(name="remind.help", aliases=["remindme.help"])
     async def remind_help(self, ctx):

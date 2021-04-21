@@ -50,10 +50,9 @@ class MyBot(commands.Bot):
         self.all_cogs = {}  # A list of all cogs found in files.
         self.active_cogs = {}  # A list of all currently loaded cogs
 
-        self.timed_commands = [self.toggle_cog]  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
         self.UI_tabs = []  # A list of functions that are used in user_interface to generate tabs for specific cogs.
         self.BotUI = None
-        self.cog_queue = []
 
         self.owner_id = int(os.getenv("OWNER_ID"))
         self.uptime_seconds = self.time_now()
@@ -92,11 +91,6 @@ class MyBot(commands.Bot):
 
         return embed
 
-    async def toggle_cog(self, time_now):
-        while self.cog_queue:
-            c = self.cog_queue.pop(0)
-            c[1](c[0])
-
     async def start(self, *args, **kwargs):
         """Log into discord and begin running commands."""
         self.db = sqlite3.connect("bot.db")
@@ -126,7 +120,6 @@ class MyBot(commands.Bot):
                 self.load_extension(cog_name)
             elif load:
                 self.load_extension(cog_name)
-        self.BotUI.awaiting = False
         await super().start(*args, **kwargs)
 
     def load_extension(self, name):
@@ -661,27 +654,36 @@ class MyBot(commands.Bot):
             return benchmarks
 
 
-async def timed_loop(aBot, loop_ticks=5):
+class Scheduler:
     """
-    A loop that polls regularly. Designed to do scheduled functions and run in an async loop with the main bot.
-
-    The structure of a timed command is pretty simple:
-        async def command_name(time_now):
-            # code here
-
-    Arguments:
-        aBot: The bot to run the functions on.
-        loop_ticks: How many seconds between each tick.
+    Attributes:
+        bot: A reference to the discord bot.
+        schedule: A list with entries of [function, time]. Time is when the function will be triggered.
     """
-    while True:
-        await asyncio.sleep(loop_ticks)
-        time_now = aBot.time_now()  # Current Unix Epoch time.
+    def __init__(self, bot):
+        self.bot = bot
+        self.schedule = []
+        self.schedule_time = 0.5  # In seconds, how regularly the schedule is checked
+        self.l_schedule_time = lambda arr: arr[1]  # get time from a schedule entry
 
-        for command in aBot.timed_commands:
-            try:
-                await command(time_now)
-            except:
-                traceback.print_exc()
+    async def start(self):
+        self.refresh_schedule()
+        while True:
+            await asyncio.sleep(self.schedule_time)
+            time_now = self.bot.time_now()  # Current Unix Epoch time.
+            while time_now > self.schedule[0][1]:
+                function, activate_time, delay = self.schedule[0]
+                await function(time_now)
+                self.schedule[0][1] = time_now + delay
+                self.schedule = sorted(self.schedule, key=self.l_schedule_time)
+
+    def refresh_schedule(self):
+        """Updates the schedule from the bot's timed_commands list."""
+        time_now = self.bot.time_now()
+        new_schedule = []
+        for function, delay in self.bot.timed_commands:
+            new_schedule.append([function, time_now+delay, delay])
+        self.schedule = sorted(new_schedule, key=self.l_schedule_time)
 
 
 def allgroups(matchobject):
@@ -734,9 +736,6 @@ if __name__ == "__main__":
     bot = MyBot(bot_prefix, intents=intents)
     bot.remove_command("help")  # the default help command is ugly and I maintain a help in my server. Also lets me control what's shown.
 
-    UI = user_interface.BotUI(bot)
-    bot.BotUI = UI  # Give the bot a reference to the UI object.
-
     # Set up logger. Modified docs version.
     logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
@@ -765,16 +764,11 @@ if __name__ == "__main__":
             raise error
 
     loop = asyncio.get_event_loop()  # TODO: Run this loop as a background process, so the UI is the only open process?
-    asyncio.ensure_future(timed_loop(bot))
     asyncio.ensure_future(bot.start(TOKEN))
+    asyncio.ensure_future(Scheduler(bot).start())
 
-    t_bot = threading.Thread(target=loop.run_forever)
-    t_ui = threading.Thread(target=UI.start)
     try:
-        t_bot.start()
-        t_ui.start()
-        t_bot.join()
-        t_ui.join()
+        loop.run_forever()
     except KeyboardInterrupt:
         loop.run_until_complete(bot.logout())
     finally:
