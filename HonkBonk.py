@@ -12,8 +12,6 @@ from random import random
 import traceback
 from math import trunc
 from collections import defaultdict
-import user_interface
-import threading
 from pathlib import Path
 
 
@@ -24,16 +22,27 @@ class MyBot(commands.Bot):
 
     Attributes
     ----------
+    active_cogs: Dict{:class:`str`: :class:`int`}
+        A list of the currently loaded cogs.
     admins: List[:class:`int`]
         A list of user IDs who have admin privileges over this bot.
-    active_cogs: List[:class:'str']
-        A list of the currently loaded cogs.
-    zws: :class:'str'
-        A zero width space, used in embeds.
-    db:
-        An SQLite3 database
-    cursor:
-        A cursor to the SQLite3 database
+    all_cogs: Dict{:class:`str`: :class:`int`}
+        All cogs that were found upon loading the bot.
+    core_help_text: collections.defaultdict{:class:`str`: List[:class:`str`]}
+        Dictionary where key is the category, and value is a list of command names.
+        Used to construct the response for c.help
+    db: :class:`sqlite3.Connecton`
+        A connection object to the database.
+    timed_commands: List[List[function, :class:`int` or function]]
+        Functions that are regularly run by the scheduler.
+        The first value is the function.
+        The second is either the seconds between activations, or a function that returns a Unix Epoch time.
+    uptime_seconds: :class:`int`
+        Unix Epoch time of when the bot was turned on.
+    uptime_datetime: :class:`datetime.datetime`
+        Datetime object of when the bot was turned on.
+    owner_id: :class:`int`
+        The ID of the person who owns this bot. Used in MyBot.has_perm
     """
     # A list of "format patterns", essentially the form a variable can take.
     pformats = {
@@ -50,7 +59,7 @@ class MyBot(commands.Bot):
         self.all_cogs = {}  # A list of all cogs found in files.
         self.active_cogs = {}  # A list of all currently loaded cogs
 
-        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check timed_loop() for info.
+        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check the Scheduler object for info.
         self.UI_tabs = []  # A list of functions that are used in user_interface to generate tabs for specific cogs.
         self.BotUI = None
 
@@ -72,7 +81,7 @@ class MyBot(commands.Bot):
             337793807888285698,  # Oken
             630930243464462346,  # Pika
         ]
-        self.zws = "\u200b"  # An empty character, used when a field *requires* a value I don't want to give (normally embeds)
+        self.zws = "\u200b"  # TODO: Maybe remove this?
 
         # Assigned in start(), as they run on a different thread.
         self.db = None
@@ -704,6 +713,7 @@ def allgroups(matchobject):
 # IDEA: Github integration
 # IDEA: emoji only channel.
 
+# TODO: I need to update my old message variable fetching code. It's quite messy.
 # TODO: Allow .disable to stop a command running in a server.
 # TODO: Set up Doxygen html documentation.
 # TODO: Add server admins as viable "bot admins"
@@ -729,7 +739,6 @@ def allgroups(matchobject):
 if __name__ == "__main__":
     load_dotenv()  # Fetches from .env file.
     TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
-    myID = int(os.getenv("OWNER_ID"))  # The ID of my account :) Certain commands can only be run by admins like me.
     bot_prefix = "c."  # Commands in chat should be prefixed with this.
 
     intents = discord.Intents.all()
