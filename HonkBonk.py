@@ -31,7 +31,7 @@ class MyBot(commands.Bot):
     core_help_text: collections.defaultdict{:class:`str`: List[:class:`str`]}
         Dictionary where key is the category, and value is a list of command names.
         Used to construct the response for c.help
-    db: :class:`sqlite3.Connecton`
+    db: :class:`sqlite3.Connection`
         A connection object to the database.
     timed_commands: List[List[function, :class:`int` or function]]
         Functions that are regularly run by the scheduler.
@@ -380,7 +380,13 @@ class MyBot(commands.Bot):
     def db_do(db, request, *args):
         """Perform an SQLite3 query, then commit the change."""
         db.execute(request, args)
-        db.execute("commit")
+        try:
+            db.execute("commit")
+        except sqlite3.OperationalError:
+            # Piss off giving me an error when there's nothing to commit.
+            # That's not an error, that's a functional decision.
+            # Sometimes I want to attempt a transaction that might be empty.
+            pass
 
     @staticmethod
     def remove_invoke(message):
@@ -681,17 +687,32 @@ class Scheduler:
             await asyncio.sleep(self.schedule_time)
             time_now = self.bot.time_now()  # Current Unix Epoch time.
             while time_now > self.schedule[0][1]:
-                function, activate_time, delay = self.schedule[0]
+                function, activate_time, delay_calc = self.schedule[0]
                 await function(time_now)
-                self.schedule[0][1] = time_now + delay
+
+                # Calculate new time.
+                if isinstance(delay_calc, int):
+                    new_time = time_now + delay_calc
+                elif callable(delay_calc):
+                    new_time = delay_calc(time_now)
+                else:
+                    raise AttributeError(f"delay_calc is unrecognized type {type(delay_calc)}")
+
+                self.schedule[0][1] = new_time
                 self.schedule = sorted(self.schedule, key=self.l_schedule_time)
 
     def refresh_schedule(self):
         """Updates the schedule from the bot's timed_commands list."""
         time_now = self.bot.time_now()
         new_schedule = []
-        for function, delay in self.bot.timed_commands:
-            new_schedule.append([function, time_now+delay, delay])
+        for function, delay_calc in self.bot.timed_commands:
+            if isinstance(delay_calc, int):
+                new_schedule.append([function, time_now+delay_calc, delay_calc])
+            elif callable(delay_calc):
+                new_schedule.append([function, delay_calc(time_now), delay_calc])
+            else:
+                print(f"MyBot.timed_commands[n][1] was provided with type {type(delay_calc)}, should be callable or int.\n"
+                      f"function: {function}")
         self.schedule = sorted(new_schedule, key=self.l_schedule_time)
 
 
