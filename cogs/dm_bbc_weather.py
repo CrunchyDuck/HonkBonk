@@ -4,18 +4,23 @@ from discord.ext import commands
 from os import getenv
 
 
-class weather(commands.Cog, name="emoji"):
+class Weather(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        rss_code = getenv("BBC_RSS")
+        self.rss_code = getenv("BBC_RSS", None)
+        # Most likely, people don't want to run this. If no rss is found, don't.
+        if not self.rss_code:
+            return
         self.website = f"https://weather-broker-cdn.api.bbci.co.uk/en/forecast/rss/3day/{rss_code}"
         self.bot.timed_commands.append([self.tell_weather, self.calculate_next_trigger])
         self.db_init()
 
     # Timed command
     async def tell_weather(self, time_now, manual=False):
+        if self.rss_code is None:
+            return
         next_time = self.calculate_next_trigger(time_now)
-        if time_now < next_time and not manual:  # can happen if the calculation was called manually.
+        if time_now < next_time and not manual:
             return
 
         me = await self.bot.fetch_user(self.bot.owner_id)
@@ -26,12 +31,12 @@ class weather(commands.Cog, name="emoji"):
         await me.send(msg)
 
         self.bot.db_do(self.bot.db, "DELETE FROM weather_triggered")
-        self.bot.db_do(self.bot.db, "INSERT INTO weather_triggered VALUES(?)", next_time)
+        self.bot.db_do(self.bot.db, "INSERT INTO weather_triggered VALUES(?)", time_now)
 
     @commands.command("w.now")
     async def current_weather(self, ctx):
         if not await self.bot.has_perm(ctx, bot_owner=True, dm=True): return
-        await self.tell_weather(0, manual=True)
+        await self.tell_weather(self.bot.time_now(), manual=True)
 
     def calculate_next_trigger(self, time_now):
         """
@@ -51,8 +56,8 @@ class weather(commands.Cog, name="emoji"):
 
 
 def setup(bot):
-    bot.add_cog(weather(bot))
+    bot.add_cog(Weather(bot))
 
 
 def teardown(bot):
-    bot.remove_cog(weather(bot))
+    bot.remove_cog(Weather(bot))
