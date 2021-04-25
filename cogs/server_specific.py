@@ -14,7 +14,7 @@ class ServerSpecific(commands.Cog, name="server_specific"):
         self.cur = bot.cursor
         self.init_db(self.cur)
 
-        self.bot.timed_commands.append([self.dj_end, 5])
+        self.bot.Scheduler.add(self.dj_end, 5)
 
         self.rc_deskcheck = self.bot.Chance({
             565879875647438851: 150,  # pidge (discrimination)

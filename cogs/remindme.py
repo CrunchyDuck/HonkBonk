@@ -10,7 +10,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     def __init__(self, bot):
         self.bot = bot
         self.init_db(self.bot.cursor)
-        self.bot.timed_commands.append([self.remind_time, 1])
+        self.bot.Scheduler.add(self.remind_time, 1)
 
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
@@ -18,10 +18,12 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         reminder = self.segment_command(ctx.message.content)
         to_remind = self.bot.admin_override(ctx)
 
+        # No timer reminder
         if not reminder["time"] and not reminder["interval"]:
             reply = "Will keep that safe for you :)"
             self.bot.db_do(self.bot.db, "INSERT INTO remindme VALUES(?,?,?,?,?)",
                            reminder["msg"], to_remind.id, 0, 0, 0)
+        # Reminder with timer
         else:
             time = self.bot.time_from_string(reminder["time"])  # Convert the time from the command into seconds.
             time = min(86400 * 30, time)  # Limit to 1 month.
@@ -63,9 +65,9 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         # Remove reminder.
         else:
             # Check the user actually owns reminder.
-            entry = self.bot.db_get(self.bot.db, f"SELECT user_id FROM remindme WHERE rowid=?", remove_id)[0]
+            entry = self.bot.db_get(self.bot.db, f"SELECT user_id FROM remindme WHERE rowid=?", remove_id)
             if entry:
-                if user != entry["user_id"]:
+                if user != entry[0]["user_id"]:
                     await ctx.send("You don't own this reminder.")
                     return
             else:
@@ -95,7 +97,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             else:
                 break
 
-    @commands.command(name="remind.help", aliases=["remindme.help"])
+    @commands.command(name="remind.help", aliases=["remindme.help", "r.help"])
     async def remind_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
@@ -127,8 +129,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         
         Examples:
             c.reminders
-            c.reminders remove=21
-            c.reminders in```
+            c.reminders remove=21```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
@@ -182,7 +183,8 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             "interval INTEGER,"  # For repeated reminders, how regularly to remind.
             "timed INTEGER"  # 0 if this reminder does not use times.
             ")")
-        # Update table if old version is in use.
+
+        # Update from previous version.
         cursor.execute("PRAGMA table_info(remindme)")
         table_info = cursor.fetchall()
         column_exists = False

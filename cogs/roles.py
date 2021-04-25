@@ -14,7 +14,7 @@ class RoleControl(commands.Cog, name="roles"):
 
     def __init__(self, bot):
         self.bot = bot
-        self.bot.timed_commands.append([self.timed_role_end, 2])
+        self.bot.Scheduler.add(self.timed_role_end, 2)
         self.init_db(bot.cursor)
 
         self.help_text = {

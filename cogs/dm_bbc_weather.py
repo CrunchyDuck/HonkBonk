@@ -11,8 +11,8 @@ class Weather(commands.Cog):
         # Most likely, people don't want to run this. If no rss is found, don't.
         if not self.rss_code:
             return
-        self.website = f"https://weather-broker-cdn.api.bbci.co.uk/en/forecast/rss/3day/{rss_code}"
-        self.bot.timed_commands.append([self.tell_weather, self.calculate_next_trigger])
+        self.website = f"https://weather-broker-cdn.api.bbci.co.uk/en/forecast/rss/3day/{self.rss_code}"
+        self.bot.Scheduler.add(self.tell_weather, self.calculate_next_trigger)
         self.db_init()
 
     # Timed command
@@ -37,6 +37,7 @@ class Weather(commands.Cog):
     async def current_weather(self, ctx):
         if not await self.bot.has_perm(ctx, bot_owner=True, dm=True): return
         await self.tell_weather(self.bot.time_now(), manual=True)
+        self.bot.Scheduler.refresh_timer(self.tell_weather)
 
     def calculate_next_trigger(self, time_now):
         """

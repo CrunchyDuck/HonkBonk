@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 class MyBot(commands.Bot):
-    # TODO: Update docstring
+    # TODO: Document functions.
     """
     An expanded version of discord.ext.commands.Bot.
 
@@ -33,10 +33,8 @@ class MyBot(commands.Bot):
         Used to construct the response for c.help
     db: :class:`sqlite3.Connection`
         A connection object to the database.
-    timed_commands: List[List[function, :class:`int` or function]]
-        Functions that are regularly run by the scheduler.
-        The first value is the function.
-        The second is either the seconds between activations, or a function that returns a Unix Epoch time.
+    Scheduler: :class:`Scheduler`
+        Handles timed functions.
     uptime_seconds: :class:`int`
         Unix Epoch time of when the bot was turned on.
     uptime_datetime: :class:`datetime.datetime`
@@ -59,7 +57,7 @@ class MyBot(commands.Bot):
         self.all_cogs = {}  # A list of all cogs found in files.
         self.active_cogs = {}  # A list of all currently loaded cogs
 
-        self.timed_commands = []  # A list of functions that should be ran every few seconds. Check the Scheduler object for info.
+        self.Scheduler = Scheduler(self)  # Handled commands that run on timers.
         self.UI_tabs = []  # A list of functions that are used in user_interface to generate tabs for specific cogs.
         self.BotUI = None
 
@@ -677,43 +675,71 @@ class Scheduler:
     """
     def __init__(self, bot):
         self.bot = bot
+        self.timed_functions = []  # Bit of data redundancy never hurt anybody. used in refresh_schedule.
         self.schedule = []
         self.schedule_time = 0.5  # In seconds, how regularly the schedule is checked
         self.l_schedule_time = lambda arr: arr[1]  # get time from a schedule entry
 
     async def start(self):
-        self.refresh_schedule()
+        self._refresh_schedule()
         while True:
             await asyncio.sleep(self.schedule_time)
             time_now = self.bot.time_now()  # Current Unix Epoch time.
             while time_now > self.schedule[0][1]:
-                function, activate_time, delay_calc = self.schedule[0]
+                function, activate_time, timer = self.schedule[0]
                 await function(time_now)
 
-                # Calculate new time.
-                if isinstance(delay_calc, int):
-                    new_time = time_now + delay_calc
-                elif callable(delay_calc):
-                    new_time = delay_calc(time_now)
-                else:
-                    raise AttributeError(f"delay_calc is unrecognized type {type(delay_calc)}")
-
+                new_time = self._use_timer(timer)
                 self.schedule[0][1] = new_time
                 self.schedule = sorted(self.schedule, key=self.l_schedule_time)
 
-    def refresh_schedule(self):
-        """Updates the schedule from the bot's timed_commands list."""
-        time_now = self.bot.time_now()
+    def _refresh_schedule(self):
+        """Updates the schedule from self.timed_functions."""
         new_schedule = []
-        for function, delay_calc in self.bot.timed_commands:
-            if isinstance(delay_calc, int):
-                new_schedule.append([function, time_now+delay_calc, delay_calc])
-            elif callable(delay_calc):
-                new_schedule.append([function, delay_calc(time_now), delay_calc])
-            else:
-                print(f"MyBot.timed_commands[n][1] was provided with type {type(delay_calc)}, should be callable or int.\n"
-                      f"function: {function}")
+        for function, timer in self.timed_functions:
+            try:
+                new_time = self._use_timer(timer)
+                new_schedule.append([function, new_time, timer])
+            except TypeError as e:
+                print(e)
+
         self.schedule = sorted(new_schedule, key=self.l_schedule_time)
+
+    def refresh_timer(self, function):
+        """Recalculate the trigger time on the provided function. Normally used for manual calls."""
+        # I'm sure there's a simpler way to write this down, but I'm blanking right now.
+        for i in range(len(self.schedule)):
+            _function, _, timer = self.schedule[i]
+            if _function == function:
+                new_time = self._use_timer(timer)
+                self.schedule[i][1] = new_time
+                self.schedule = sorted(self.schedule, key=self.l_schedule_time)
+                break
+
+    def add(self, function, timer):
+        """
+        Adds a timed function to the scheduler.
+        Arguments:
+            function - The method to run each trigger.
+            timer - integer or method
+                Integer will cause the function to be run every (integer) seconds.
+                A method will be called, and should return a Unix Epoch time in seconds of when the function should run.
+        """
+        self.timed_functions.append([function, timer])
+        # TODO: Maybe support adding while self.start loop is running?
+
+    def _use_timer(self, timer):
+        """
+        Uses a timer to calculate when a function should next be triggered.
+        Returns: (int) Unix Epoch time representing a date.
+        """
+        time_now = self.bot.time_now()  # Current Unix Epoch time.
+        if isinstance(timer, int):
+            return time_now + timer
+        elif callable(timer):
+            return timer(time_now)
+        else:
+            raise TypeError(f"Scheduler was provided with type {type(timer)} for timer, should be callable or int.\n")
 
 
 def allgroups(matchobject):
@@ -795,7 +821,7 @@ if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()  # TODO: Run this loop as a background process, so the UI is the only open process?
     asyncio.ensure_future(bot.start(TOKEN))
-    asyncio.ensure_future(Scheduler(bot).start())
+    asyncio.ensure_future(bot.Scheduler.start())
 
     try:
         loop.run_forever()
