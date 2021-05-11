@@ -15,7 +15,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        reminder = self.segment_command(ctx.message.content)
+        reminder = self.get_reminder_time(ctx.message.content)
         to_remind = self.bot.admin_override(ctx)
 
         # No timer reminder
@@ -43,39 +43,55 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     async def my_reminders(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         user = self.bot.owner_override(ctx).id
-        message = ""
 
-        remove_id = int(self.bot.get_variable(ctx.message.content, "remove", type="int", default=0))
+        remove = int(self.bot.get_variable(ctx.message.content, "remove", type="keyword", default=0))
 
         # Return a list of reminders
-        if not remove_id:
+        if not remove:
+            hb_response = ""
             entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE user_id=?", user)
             for entry in entries:
-                message += f"\n{entry['rowid']}: {entry['message']}"
+                hb_response += f"\n{entry['rowid']}: {entry['message']}"
                 if entry["timed"]:
                     time = self.bot.time_to_string(seconds=entry["time"] - self.bot.time_now())
-                    message += f" ------ in {time}"
+                    hb_response += f" ------ in {time}"
                     if entry["interval"]:
                         reminder_amount = self.bot.time_to_string(seconds=entry["interval"])
-                        message += f" (every {reminder_amount})"
-            if not message:
-                message = "No reminders!"
+                        hb_response += f" (every {reminder_amount})"
+            if not hb_response:
+                hb_response = "No reminders!"
 
-            await ctx.send(self.bot.escape_message(message))
+            await ctx.send(self.bot.escape_message(hb_response))
         # Remove reminder.
         else:
-            # Check the user actually owns reminder.
-            entry = self.bot.db_get(self.bot.db, f"SELECT user_id FROM remindme WHERE rowid=?", remove_id)
-            if entry:
-                if user != entry[0]["user_id"]:
-                    await ctx.send("You don't own this reminder.")
-                    return
-            else:
-                await ctx.send("No reminder with this id!")
-                return
+            unowned_ids = []
+            unrecognized_ids = []
+            deleted_ids = []
 
-            self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", remove_id)
-            await ctx.send("Reminder deleted.")
+            # Run through each ID and try to delete it.
+            for remove_id in re.finditer("\d+", ctx.message.content):
+                remove_id = remove_id.group(0)
+                # Check the user actually owns reminder.
+                entry = self.bot.db_get(self.bot.db, f"SELECT user_id FROM remindme WHERE rowid=?", remove_id)
+                if entry:
+                    if user != entry[0]["user_id"]:
+                        unowned_ids.append(remove_id)
+                        continue
+                else:
+                    unrecognized_ids.append(remove_id)
+                    continue
+
+                self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", remove_id)
+                deleted_ids.append(remove_id)
+
+            # Formulate response
+            hb_response = "Deleted reminders: " + " ".join(deleted_ids)  # Will always be sent even if nothing was deleted.
+            if unowned_ids:
+                hb_response += "\nReminders you didn't own (bad person): " + " ".join(unowned_ids)
+            if unrecognized_ids:
+                hb_response += "\nIds that weren't found: " + " ".join(unrecognized_ids)
+
+            await ctx.send(hb_response)
 
     # Timed command
     async def remind_time(self, time_now):
@@ -107,7 +123,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             
         Arguments:
             in - How long until the first reminder
-            every - How regularly to remind you of this. Should be placed after "in" if it exists.
+            every - How regularly to remind you of this.
         
         Examples:
             c.remind owo
@@ -125,48 +141,56 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         ```Manage your reminders!
         
         Arguments:
-            remove - Delete the reminder with the provided ID. ID is the leftmost value in the reminders table.
+            remove - Delete reminders from you list. Provide the IDs of the reminders you wish to delete!
         
         Examples:
             c.reminders
-            c.reminders remove=21```
+            c.reminders remove 1 52 7```
         """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
-    def segment_command(self, command):
+    def get_reminder_time(self, message):
         """
-        Segments a command up into the reminder, and the timer.
-        Returns [reminder, time] or [None, None] if not found.
+        Gets the message, time to remind, and regularity to remind from a remindme command.
+        Returns: Dict["msg": "", "interval": "", "time": ""]
         """
         # Remove the invoking of the command.
         command = command.replace("c.remind ", "")
         command = command.replace("c.remindme ", "")
         command = command[::-1]  # Reverse the string to match backwards.
 
-        # TODO: Clean this code, jeez.
-        match = {}
-        # Get the last matches.
-        match["interval"] = re.search(self.r_interval, command)
-        if match["interval"]:
-            start = match["interval"].start(1)
-            end = match["interval"].end(1)
-            match["interval"] = match["interval"].group(1)[::-1]
-            command = command[:start] + command[end + 6:]  # Remove this from the command.
-        else:
-            match["interval"] = ""
+        # Time
+        in_time_start = None
+        for in_time_start in re.finditer(" in ", message):
+            pass
+        if in_time_start:
+            pos = in_time_start.start()
+            message_from_match = message[pos:]
 
-        match["time"] = re.search(self.r_in_time, command)
-        if match["time"]:
-            start = match["time"].start(1)
-            end = match["time"].end(1)
-            match["time"] = match["time"].group(1)[::-1]  # Reverse the match to return it to normal
-            command = command[:start] + command[end + 3:]  # remove this from the command.
-        else:
-            match["time"] = ""
+            # Get the "in amount of time" part of the message and nothing else.
+            in_time = re.match("( in \d.+?)(?: every |$)", message_from_match)
+            # If there is a valid match, remove it from the original message and store it in the dictionary.
+            if in_time:
+                match["time"] = in_time.group(1)
+                message = message.replace(match["time"], "", 1)
 
-        match["msg"] = command.strip()[::-1]  # Message is whatever remains of the command after all invoking info has been stripped.
+        # Interval
+        every_time_start = None
+        for every_time_start in re.finditer(" every ", message):
+            pass
+        if every_time_start:
+            pos = every_time_start.start()
+            message_from_match = message[pos:]
 
+            # Get the "every amount of time" part of the message and nothing else.
+            every_time = re.match("( every \d.+?)(?:$)", message_from_match)
+            # If there is a valid match, remove it from the original message and store it in the dictionary.
+            if every_time:
+                match["interval"] = every_time.group(1)
+                message = message.replace(match["interval"], "", 1)
+
+        match["msg"] = message  # Put what is left of the message into the dictionary.
         # Default reminder message.
         if not match["msg"]:
             match["msg"] = "Reminder!"
