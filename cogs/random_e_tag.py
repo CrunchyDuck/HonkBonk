@@ -67,10 +67,10 @@ class sinner(commands.Cog, name="sinner"):
         sentence = sentence.replace("_", "\\_")
         await ctx.send(sentence)
 
-    @commands.command(name=f"{prefix}.tag_count")
+    @commands.command(name=f"{prefix}.tag_count", aliases=[f"{prefix}.count"])
     async def how_many_with_tag(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        re_result = search(r"c\.e\.tag_count (.+)", ctx.message.content)
+        re_result = search(r".+? (.+)", ctx.message.content)
         if not re_result:
             await ctx.send("Please provide a tag!")
             return
@@ -170,7 +170,7 @@ class sinner(commands.Cog, name="sinner"):
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
 
-    @commands.command(name=f"{prefix}.tag_count.help")
+    @commands.command(name=f"{prefix}.tag_count.help", aliases=[f"{prefix}.count.help"])
     async def num_with_tag_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         docstring = """
@@ -178,7 +178,7 @@ class sinner(commands.Cog, name="sinner"):
     
             Examples:
                 c.e.tag_count cervid
-                c.e.tag_count :d```
+                c.e.count :d```
             """
         docstring = self.bot.remove_indentation(docstring)
         await ctx.send(docstring)
