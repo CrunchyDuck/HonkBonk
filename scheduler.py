@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Callable
 import asyncio
+import helpers
 
 
 class Scheduler:
@@ -10,8 +11,7 @@ class Scheduler:
     Attributes:
         bot: A reference to the discord bot.
     """
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self):
         self.timed_functions = []  # Bit of data redundancy never hurt anybody. used in refresh_schedule.
         self.schedule = []
         self.schedule_time = 0.5  # In seconds, how regularly the schedule is checked
@@ -31,7 +31,7 @@ class Scheduler:
     def generate_schedule(self):
         """Creates a schedule from self.timed_functions."""
         new_schedule = []
-        time = self.bot.time_now()  # Current Unix Epoch time.
+        time = helpers.time_now()  # Current Unix Epoch time.
         for function, timer in self.timed_functions:
             event = ScheduledEvent(function, timer)
             try:
@@ -48,9 +48,12 @@ class Scheduler:
         Will continually check each ScheduledEvent and run if necessary.
         """
         self.schedule = self.generate_schedule()
+        if not self.schedule:
+            print("No scheduled functions.")
+            return
         while True:
             await asyncio.sleep(self.schedule_time)
-            time_now = self.bot.time_now()  # Current Unix Epoch time.
+            time_now = helpers.time_now()  # Current Unix Epoch time.
             while time_now > self.schedule[0].time:
                 # FIXME: If an event's time doesn't increase this will cause an infinite loop.
                 #  Will never come up through proper use of the Scheduler, but should be prevented still.
