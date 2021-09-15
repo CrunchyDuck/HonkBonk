@@ -1,18 +1,16 @@
 import asyncio
 import discord
-import time
 import logging
-import os
 import re
 import sqlite3
 from datetime import datetime
 from discord.ext import commands
-from dotenv import load_dotenv
 from random import random
-import traceback
-from math import trunc
 from collections import defaultdict
 from pathlib import Path
+from json import load
+from scheduler import Scheduler
+import helpers
 
 
 class MyBot(commands.Bot):
@@ -51,18 +49,18 @@ class MyBot(commands.Bot):
     }
     r_newline_whitespace = r"(?<=\n)([ ]+)"  # The whitespace after a new line. Basically, removes indentation.
 
-    def __init__(self, bot_prefix, **kwargs):
-        super().__init__(bot_prefix, **kwargs)  # This just runs the original commands.Bot __init__ function.
-        # The cogs to load on the bot.
-        self.all_cogs = {}  # A list of all cogs found in files.
-        self.active_cogs = {}  # A list of all currently loaded cogs
+    def __init__(self, settings, **kwargs):
+        self.settings = settings
+        super().__init__(self.settings["PREFIX"], **kwargs)  # This just runs the original commands.Bot __init__ function.
 
-        self.Scheduler = Scheduler(self)  # Handled commands that run on timers.
-        self.UI_tabs = []  # A list of functions that are used in user_interface to generate tabs for specific cogs.
-        self.BotUI = None
+        # == Add core events ==
+        self.event(self.on_command_error)  # Might move these to cogs.core
+        self.event(self.on_ready)
 
-        self.owner_id = int(os.getenv("OWNER_ID"))
-        self.uptime_seconds = self.time_now()
+        self.Scheduler = Scheduler()  # Handles commands that run on timers.
+
+        self.owner_id = self.settings["OWNER_ID"]  # Who owns the bot
+        self.uptime_seconds = helpers.time_now()  # Used to check how long the bot has been active for
         self.uptime_datetime = datetime.now()
 
         # Used for the "core" help command, which is called with c.help. Any non-specific commands are placed here.
@@ -70,20 +68,31 @@ class MyBot(commands.Bot):
         self.core_help_text = {
             "modules": [],
             "General": [],
-            }
+        }
         self.core_help_text = defaultdict(list, **self.core_help_text)
-
-        # TODO: Switch to storing permissions in a database rather than hardcoding them, so they can be changed on the fly.
-        self.admins = [  # Certain commands can only be run by these users.
-            self.owner_id,
-            337793807888285698,  # Oken
-            630930243464462346,  # Pika
-        ]
-        self.zws = "\u200b"  # TODO: Maybe remove this?
 
         # Assigned in start(), as they run on a different thread.
         self.db = None
-        self.cursor = None  # TODO: Remove references to this and switch to using db.execute
+        self.cursor = None
+
+    async def on_command_error(self, ctx, error):
+        """Triggered when a prefix is found, but no command is."""
+        if isinstance(error, commands.CommandNotFound):  # Unrecognized command
+            # TODO: Maybe move this into a "adaptive commands" function
+            # Pat reaction.
+            pats = re.search(r"c.((?:pat)+)", ctx.message.content)
+            if pats:
+                num = len(pats.group(1)) // 3
+                await ctx.send("U" + ("wU" * num))
+                return
+
+            # Command not recognized
+            await ctx.send("command no no be is.")
+        else:
+            raise error
+
+    async def on_ready(self):
+        print(f"{self.user} has connected to Discord :) @ {datetime.now()}")
 
     def default_embed(self, title):
         """
@@ -99,10 +108,17 @@ class MyBot(commands.Bot):
         return embed
 
     async def start(self, *args, **kwargs):
-        """Log into discord and begin running commands."""
-        self.db = sqlite3.connect("bot.db")
+        """
+        Log into discord and begin running commands.
+        """
+        self.db = sqlite3.connect("bot.db")  # Prepare DB for access from other modules.
         self.cursor = self.db.cursor()
-        self.db_init()
+
+        # Find and load cogs.
+        #cogs = ["cogs.core"]  # Manually loaded for now
+
+        await super().start(self.settings["BOT_TOKEN"], *args, **kwargs)
+        return
 
         # Find and load cogs.
         cogs = list(Path("./cogs").glob("**/*.py"))
@@ -130,62 +146,15 @@ class MyBot(commands.Bot):
         await super().start(*args, **kwargs)
 
     def load_extension(self, name):
-        self.active_cogs[name] = self.time_now()
         super().load_extension(name)
 
     def unload_extension(self, name):
-        self.active_cogs.pop(name)
         super().unload_extension(name)
 
-    def db_init(self):
-        """Initializes any important tables in the database if they don't exist."""
-        cursor = self.cursor
-
-        cursor.execute("begin")
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS settings ("
-            "server INTEGER,"  # The server this setting is specific to.
-            "key STRING,"  # The name of the setting.
-            "value STRING"  # The value this setting stores.
-            ")")
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS cogs ("
-            "cog STRING,"  # The path to the cog.
-            "active INTEGER"  # Whether the cog is enabled or not.
-            ")")
-        cursor.execute("commit")
-
-        # Setting keys:
-        # ignore: Ignore a channel, category, user.
-
-    def db_read_setting(self, server_id, key, default=None):
-        """Fetches all entries for a key from the settings table in the database. Returns default if no entry exists."""
-        self.cursor.execute(f"SELECT value FROM settings WHERE server={server_id} AND key='{key}'")
-        result = self.cursor.fetchall()
-        if result:
-            return result
-        elif default is not None:
-            return default
-        else:
-            # Get default from database
-            self.cursor.execute(f"SELECT value FROM settings WHERE server=0 AND key={key}")
-            result = self.cursor.fetchall()
-            return result
-
-    def db_add_setting(self, server_id, key, value):
+    async def has_perm(self, input, *, bot_owner=False, dm=True, ignore_bot=True):
         """
-        """
-        self.cursor.execute(f"INSERT INTO settings VALUES(?, ?, ?)", (server_id, key, value))
-        self.cursor.execute("commit")
+        Common permissions to be checked to see if a command should run in the given context.
 
-    def db_remove_setting(self, server_id, key, value=None):
-        """Deletes a server setting."""
-        #self.cursor.execute(f"DELETE FROM settings ")
-
-    async def has_perm(self, input, *, admin=False, bot_owner=False, dm=False, ignore_bot=True, banned_users=False, message_on_fail=True,
-                       bot_room=False, ignored_rooms=False):
-        """
-        Common permissions to be checked to see if this user is allowed to run a command.
         Arguments:
             input: Context or message, should be able to get a User from this.
             admin: Is this an admin only command?
@@ -197,8 +166,6 @@ class MyBot(commands.Bot):
             bot_room: Whether this command should only run in bot rooms.
             ignored_rooms: Whether this command can be used in ignored rooms.
         """
-        # TODO: Switch to providing a dictionary instead of many bools, to allow one to put the checks in order.
-        # TODO: Allow for a list of "ignored rooms" to be added to the permissions check.
 
         # Get information required to check perms.
         b_ctx = isinstance(input, discord.ext.commands.Context)
@@ -217,24 +184,14 @@ class MyBot(commands.Bot):
             return False
 
         # An admin should only be stopped from a command if the room is ignored.
-        if not ignored_rooms and self.is_channel_ignored(input):
-            return False
-
-        if u_id in self.admins:  # Admins can always run commands.
-            return True
-        elif admin:  # If the admin check is on, this user cannot run this command.
-            if message_on_fail:
-                try:
-                    await channel.send("You must be an admin to run this command.")
-                except:
-                    pass
-            return False
+        # if not ignored_rooms and self.is_channel_ignored(input):
+        #     return False
 
         if ignore_bot and is_bot:
             return False
 
-        if not banned_users and self.is_user_ignored(input):
-            return False
+        #if not banned_users and self.is_user_ignored(input):
+        #    return False
 
         if not dm and channel.type is discord.ChannelType.private:
             return False
@@ -242,95 +199,75 @@ class MyBot(commands.Bot):
         # If all falsifying checks fail, user has perms.
         return True
 
-    def is_channel_ignored(self, ctx=None, server=0, channel_id=0):
-        """Checks if a channel or category is ignored."""
-        if ctx:
-            try:
-                server = ctx.guild.id
-                channel = ctx.channel
-                cat_id = channel.category_id
-                channel_id = channel.id
-            except:
-                return False
+    # def is_channel_ignored(self, ctx=None, server=0, channel_id=0):
+    #     """Checks if a channel or category is ignored."""
+    #     if ctx:
+    #         try:
+    #             server = ctx.guild.id
+    #             channel = ctx.channel
+    #             cat_id = channel.category_id
+    #             channel_id = channel.id
+    #         except:
+    #             return False
+    #
+    #         # Check category if CTX object
+    #         if cat_id:
+    #             self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={cat_id}", ("ignore",))
+    #             if self.cursor.fetchone():
+    #                 return True
+    #
+    #     # Check ID of channel.
+    #     self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={channel_id}", ("ignore",))
+    #     if self.cursor.fetchone():
+    #         return True
+    #     else:
+    #         return False
 
-            # Check category if CTX object
-            if cat_id:
-                self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={cat_id}", ("ignore",))
-                if self.cursor.fetchone():
-                    return True
+    # def is_user_ignored(self, ctx):
+    #     try:
+    #         server = ctx.guild.id
+    #         user_id = ctx.author.id
+    #     except:
+    #         return False
+    #     self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={user_id}", ("ignore",))
+    #     if self.cursor.fetchone():
+    #         return True
+    #     else:
+    #         return False
 
-        # Check ID of channel.
-        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={channel_id}", ("ignore",))
-        if self.cursor.fetchone():
-            return True
-        else:
-            return False
+    # def admin_override(self, ctx):
+    #     """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
+    #     # TODO: Rework this
+    #     user = ctx.author
+    #     if user.id in self.admins:
+    #         user = self._override(ctx)
+    #     return user
 
-    def is_user_ignored(self, ctx):
-        try:
-            server = ctx.guild.id
-            user_id = ctx.author.id
-        except:
-            return False
-        self.cursor.execute(f"SELECT * FROM settings WHERE server={server} AND key=? AND value={user_id}", ("ignore",))
-        if self.cursor.fetchone():
-            return True
-        else:
-            return False
-
-    def get_temp_room(self, ctx=None, room_id=0):
-        """
-        Fetches a temporary room if it exists, None if it does not.
-        Requires temp_channel cog.
-        Dictionary return formatted as:
-        {
-            "rowid": val, "user_id": val, "room_id": val, "end_time": val
-        }
-        """
-        # Get entries.
-        id = ctx.channel.id if ctx else room_id
-        self.cursor.execute(f"SELECT rowid, * FROM temp_room WHERE room_id={id}")
-
-        # Format dictionary return.
-        result = self.cursor.fetchone()  # There should only ever be one entry per room.
-        if not result:
-            return None
-
-        return_dict = {"rowid": result[0], "user_id": result[1], "room_id": result[2], "end_time": result[3]}
-        return return_dict
-
-    def admin_override(self, ctx):
-        """If an admin calls a command, and has mentioned another user, invoke that command as if the user invoked it."""
-        user = ctx.author
-        if user.id in self.admins:
-            user = self._override(ctx)
-        return user
-
-    def owner_override(self, ctx):
-        """Allows only me to invoke a command on behalf of someone else."""
-        user = ctx.author
-        if user.id == self.owner_id:
-            user = self._override(ctx)
-        return user
-
-    def _override(self, ctx):
-        """
-        Overrides a command invoke, meaning it will return a user different to the person who invoked it.
-        This should only be called by other functions, such as owner_override or admin_override.
-        The new user is determined either by the "user" integer variable in the message, or by a mention in the message.
-
-        Arguments:
-            ctx - The context variable provided to discord commands
-        """
-        user = ctx.author
-        if ctx.message.mentions:
-            user = ctx.message.mentions[0]
-        else:
-            target = int(self.get_variable(ctx.message.content, "user", type="int", default=0))
-            if target:
-                user = self.get_user(target)
-
-        return user
+    # def owner_override(self, ctx):
+    #     """Allows only me to invoke a command on behalf of someone else."""
+    #     user = ctx.author
+    #     if user.id == self.owner_id:
+    #         user = self._override(ctx)
+    #     return user
+    #
+    # def _override(self, ctx):
+    #     """
+    #     Overrides a command invoke, meaning it will return a user different to the person who invoked it.
+    #     This should only be called by other functions, such as owner_override or admin_override.
+    #     The new user is determined either by the "user" integer variable in the message, or by a mention in the message.
+    #
+    #     Arguments:
+    #         ctx - The context variable provided to discord commands
+    #     """
+    #     user = ctx.author
+    #     if ctx.message.mentions:
+    #         user = ctx.message.mentions[0]
+    #     else:
+    #         target = int(self.get_variable(ctx.message.content, "user", type="int", default=0))
+    #         if target:
+    #             user = self.get_user(target)
+    #
+    #     return user
 
     def create_help(self, help_dict, help_description=""):
         """
@@ -352,227 +289,11 @@ class MyBot(commands.Bot):
 
         return embed
 
-    @staticmethod
-    def db_get(db, request, *args, master_dict=False):
-        """Returns a database request in a nice format.
-        Arguments:
-            request - The request to run.
-            master_dict - If set to false, return a dictionary as {key: [all_values]}. Useful for checking entries.
-                Else, return a list as [{key:value,...}, {key:value,...}]. Useful for iteration.
-
-        Returns: See master_dict
-        """
-        search = db.execute(request, args)  # SQLite3 request.
-        columns = [name[0] for name in search.description]
-
-        if master_dict:
-            entries = search.fetchall()
-            results = dict(zip(columns, zip(*entries)))
-        else:
-            results = []
-            for entry in search.fetchall():
-                results.append(dict(zip(columns, entry)))
-        return results
-
-    @staticmethod
-    def db_do(db, request, *args):
-        """Perform an SQLite3 query, then commit the change."""
-        db.execute(request, args)
-        try:
-            db.execute("commit")
-        except sqlite3.OperationalError:
-            # Piss off giving me an error when there's nothing to commit.
-            # That's not an error, that's a functional decision.
-            # Sometimes I want to attempt a transaction that might be empty.
-            pass
-
-    @staticmethod
-    def remove_invoke(message):
-        """Removes the invoking call from a message using RegEx."""
-        return re.sub("(c\.[^\s]+)", "", message, count=1)
-
-    @staticmethod
-    def get_variable(string, key=None, type=None, pattern=None, default=None):
-        """
-        Uses regex to parse through a string, attempting to find a given key:value pair or a keyword.
-
-        List of recognized types:
-            "str" - Finds the first key=value_no_spaces or key="value in quotes" pair in the string, E.G say="Hi there!". Returns value.
-            "int" - Finds the first key=number pair in the string, E.G repeat=5. Returns value.
-            "keyword" - Tries to simply find the given word in the string. Returns True if keyword is found, False otherwise.
-            "float" - Find the first key=number.number pair, E.G percent=1.0 or percent=52
-
-        Arguments:
-            string: The string to search for the variable in.
-            key: Used in key=type. Requires type to be defined. If omitted, will just search the string using "type"
-            type: Used in key=type.
-            pattern: A regex pattern to search with instead of using key=type
-            default: Default return value if nothing is found.
-
-        Returns: String or Boolean
-        """
-        re_pat = ""  # The regex pattern to parse the string with.
-
-        # Get and compile the regex pattern to use to search.
-        if type:
-            if key:
-                if type == "keyword":
-                    re_pat = re.compile(fr"(\b{key}\b)")
-                elif type in MyBot.pformats:
-                    re_pat = re.compile(fr"(?:\b{key}=){MyBot.pformats[type]}")
-                else:  # Unrecognized type.
-                    raise AttributeError(f"Unrecognized type for get_variable: {type}")
-            else:
-                if type in MyBot.pformats:
-                    re_pat = re.compile(fr"{MyBot.pformats[type]}")
-                else:
-                    raise AttributeError()
-        elif pattern:  # A pre-compiled re pattern to search with
-            re_pat = pattern
-        else:
-            raise AttributeError(f"get_variable was not provided with a pattern or a type")
-
-        search_result = re.search(re_pat, string)
-        if search_result:
-            if type == "keyword":
-                return True
-            else:
-                return allgroups(search_result)
-
-        return default
-
-    @staticmethod
-    def escape_message(message):
-        """Make a message 'safe' to send by removing any pings"""
-
-        m = message
-        m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
-        m = m.replace("@", "@\u200b")
-        m = m.replace("@everyone", f"@\u200beveryone")
-        return m
-
-    @staticmethod
-    def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
-        """
-        Convert a Discord snowflake into a date string.
-        Arguments:
-            snowflake: A discord snowflake/ID
-            strftime_val: An strf to use on the datetime object.
-        Returns:
-            A string of the date.
-        """
-        timestamp = ((int(snowflake) >> 22) + 1420070400000) / 1000
-        dt = datetime.fromtimestamp(timestamp)
-        return dt.strftime(strftime_val)
-
-    @staticmethod
-    def time_from_now(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
-        """Calculates the time from now with the provided values."""
-        seconds_total = MyBot.time_to_seconds(milliseconds=milliseconds, seconds=seconds, minutes=minutes, hours=hours, days=days, weeks=weeks)
-        return time.mktime(datetime.utcnow().timetuple()) + seconds_total
-
-    @staticmethod
-    def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, weeks=0):
-        """Converts the provided time units into seconds."""
-        seconds_total = seconds
-        seconds_total += milliseconds*0.000001
-        seconds_total += minutes*60
-        seconds_total += hours*3600
-        seconds_total += days*86400
-        seconds_total += weeks*604800
-        return seconds_total
-
-    # TODO: Return an object instead of a string, to give the user more control over what they display.
-    @staticmethod
-    def time_to_string(seconds=0, minutes=0, hours=0, days=0, weeks=0):
-        """Returns the provided time as a string."""
-        # Convert provided values to seconds.
-        time = (weeks * 604800) + (days * 86400) + (hours * 3600) + (minutes * 60) + seconds  # This is inefficient, but looks nicer.
-        weeks, remainder = divmod(time, 604800)
-        days, remainder = divmod(remainder, 86400)
-        hours, remainder = divmod(remainder, 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-        timestring = ""
-        if weeks:
-            u = "week" if weeks == 1 else "weeks"
-            timestring += f"{trunc(weeks)} {u}, "
-        if days:
-            u = "day" if days == 1 else "days"
-            timestring += f"{trunc(days)} {u}, "
-        if hours:
-            u = "hour" if hours == 1 else "hours"
-            timestring += f"{trunc(hours)} {u}, "
-        if minutes:
-            u = "minute" if minutes == 1 else "minutes"
-            timestring += f"{trunc(minutes)} {u}, "
-        if seconds:
-            u = "second" if seconds == 1 else "seconds"
-            timestring += f"{trunc(seconds)} {u}, "
-
-        if timestring:
-            timestring = timestring[:-2]  # Crop the last two characters
-
-        return timestring
-
-    @staticmethod
-    def time_from_string(string):
-        """
-        Creates a time given in seconds out of a string. Accepts:
-        picoseconds, nanoseconds, milliseconds, centiseconds, deciseconds seconds, minutes, hours, days, weeks
-        """
-        seconds = 0
-        r_time = r"(\d+(?:\.\d+)?)"  # A number, optionally decimal.
-
-        # Name of unit, followed by how many seconds each is worth.
-        time_units = {
-            # others
-            "jiffy": 0.01,
-            "friedman": 86400 * 30 * 6,
-            # Metric units
-            "picosecond": 0.000000000001,
-            "nanosecond": 0.000000001,
-            "microsecond": 0.000001,
-            "millisecond": 0.001,
-            "centisecond": 0.01,
-            "decisecond": 0.1,
-            "second": 1,
-            "minute": 60,
-            "hour": 3600,
-            "day": 86400,
-            "week": 604800,
-            "month": 86400*30,  # 30 days in a month :)
-        }
-
-        # Search for the first instance of each of these.
-        for unit, worth_seconds in time_units.items():
-            re_string = rf"({r_time}) {unit}s?"
-            match = re.search(re_string, string)
-            if not match:
-                continue
-
-            t = float(match.group(1))
-            seconds += t*worth_seconds
-
-        return seconds
-
-    @staticmethod
-    def remove_indentation(string):
-        indentation_amount = re.search(MyBot.r_newline_whitespace, string)
-        if not indentation_amount:
-            return string
-        indentation_amount = indentation_amount.group(1)
-        return re.sub(indentation_amount, "", string)
-
-    @staticmethod
-    def time_now():
-        return time.mktime(datetime.utcnow().timetuple())  # Current Unix Epoch time.
-
     class Chance:
         # TODO: Maybe add in chance "brackets", meaning all things in that bracket add up up to a certain percentage.
         # TODO: Add command to check the chance x amount of weight has in the current index.
         """
-        An object that can return a random result from a predefind dictionary of chances and values.
+        An object that can return a random result from a predefined dictionary of chances and values.
         curtsy of crunchyduck :)
 
         Arguments:
@@ -667,91 +388,6 @@ class MyBot(commands.Bot):
             return benchmarks
 
 
-class Scheduler:
-    """
-    Attributes:
-        bot: A reference to the discord bot.
-        schedule: A list with entries of [function, time]. Time is when the function will be triggered.
-    """
-    def __init__(self, bot):
-        self.bot = bot
-        self.timed_functions = []  # Bit of data redundancy never hurt anybody. used in refresh_schedule.
-        self.schedule = []
-        self.schedule_time = 0.5  # In seconds, how regularly the schedule is checked
-        self.l_schedule_time = lambda arr: arr[1]  # get time from a schedule entry
-
-    async def start(self):
-        self._refresh_schedule()
-        while True:
-            await asyncio.sleep(self.schedule_time)
-            time_now = self.bot.time_now()  # Current Unix Epoch time.
-            while time_now > self.schedule[0][1]:
-                function, activate_time, timer = self.schedule[0]
-                await function(time_now)
-
-                new_time = self._use_timer(timer)
-                self.schedule[0][1] = new_time
-                self.schedule = sorted(self.schedule, key=self.l_schedule_time)
-
-    def _refresh_schedule(self):
-        """Updates the schedule from self.timed_functions."""
-        new_schedule = []
-        for function, timer in self.timed_functions:
-            try:
-                new_time = self._use_timer(timer)
-                new_schedule.append([function, new_time, timer])
-            except TypeError as e:
-                print(e)
-
-        self.schedule = sorted(new_schedule, key=self.l_schedule_time)
-
-    def refresh_timer(self, function):
-        """Recalculate the trigger time on the provided function. Normally used for manual calls."""
-        # I'm sure there's a simpler way to write this down, but I'm blanking right now.
-        for i in range(len(self.schedule)):
-            _function, _, timer = self.schedule[i]
-            if _function == function:
-                new_time = self._use_timer(timer)
-                self.schedule[i][1] = new_time
-                self.schedule = sorted(self.schedule, key=self.l_schedule_time)
-                break
-
-    def add(self, function, timer):
-        """
-        Adds a timed function to the scheduler.
-        Arguments:
-            function - The method to run each trigger.
-            timer - integer or method
-                Integer will cause the function to be run every (integer) seconds.
-                A method will be called, and should return a Unix Epoch time in seconds of when the function should run.
-        """
-        self.timed_functions.append([function, timer])
-        # TODO: Maybe support adding while self.start loop is running?
-
-    def _use_timer(self, timer):
-        """
-        Uses a timer to calculate when a function should next be triggered.
-        Returns: (int) Unix Epoch time representing a date.
-        """
-        time_now = self.bot.time_now()  # Current Unix Epoch time.
-        if isinstance(timer, int):
-            return time_now + timer
-        elif callable(timer):
-            return timer(time_now)
-        else:
-            raise TypeError(f"Scheduler was provided with type {type(timer)} for timer, should be callable or int.\n")
-
-
-def allgroups(matchobject):
-    """Returns all of the strings from a regex match object added together."""
-    string = ""
-    for s in matchobject.groups():
-        if s:
-            string += s
-
-    return string
-
-
 # IDEA: A function for the bot that will take an image, and turn it into a Waveform/vectorscope/histogram analysis because they look fucking rad
 # IDEA: Add a "collage" function that takes in a bunch of users, and combines them into a x*y collage, like I had to for DTimeLapse
 # IDEA: Twitch integration to announce streams.
@@ -778,50 +414,29 @@ def allgroups(matchobject):
 # TODO: Command for c.react.list to display all reactions in this server.
 # TODO: Make admins server based, not bot-wide.
 # TODO: Manage reactions on edited messages.
+# TODO: Madlib for sentences like "X is not a valid Ninjutsu weapon"
 
 # FIXME: Emoji pushing doesn't properly assign ownership.
 # FIXME: Clear attachments after emoji push.
 
+def main():
+    with open("settings.json", "r") as f:
+        settings = load(f)  # API tokens/bot settings
+    intents = discord.Intents.all()  # All intents makes quick testing easier.
+    bot = MyBot(settings, intents=intents)
+    bot.remove_command("help")  # Default help is ugly.
 
-if __name__ == "__main__":
-    load_dotenv()  # Fetches from .env file.
-    TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # funny bot login number
-    bot_prefix = "c."  # Commands in chat should be prefixed with this.
-
-    intents = discord.Intents.all()
-    bot = MyBot(bot_prefix, intents=intents)
-    bot.remove_command("help")  # the default help command is ugly and I maintain a help in my server. Also lets me control what's shown.
-
-    # Set up logger. Modified docs version.
+    # Set up logger.
     logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
     handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
     handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
     logger.addHandler(handler)
 
-
-    @bot.event
-    async def on_ready():
-        print(f"{bot.user} has connected to Discord :) @ {datetime.now()}")
-
-
-    @bot.event
-    async def on_command_error(ctx, error):
-        if isinstance(error, commands.CommandNotFound):
-            # Pat reaction.
-            pats = re.search(r"c.((?:pat)+)", ctx.message.content)
-            if pats:
-                num = len(pats.group(1)) // 3
-                await ctx.send("U" + ("wU" * num))
-                return
-
-            await ctx.send("command no no be is.")
-        else:
-            raise error
-
-    loop = asyncio.get_event_loop()  # TODO: Run this loop as a background process, so the UI is the only open process?
-    asyncio.ensure_future(bot.start(TOKEN))
+    loop = asyncio.get_event_loop()
+    asyncio.ensure_future(bot.start())
     asyncio.ensure_future(bot.Scheduler.start())
+    # asyncio.ensure_future(Network(bot).start())
 
     try:
         loop.run_forever()
@@ -830,3 +445,6 @@ if __name__ == "__main__":
     finally:
         loop.close()
 
+
+if __name__ == "__main__":
+    main()
