@@ -1,0 +1,9 @@
+# This is an example of a settings.json file, used at various points in the bot.
+# Generally, the purpose is to store bot-dependent or sensitive variables.
+# Change the values here, and rename this file to "settings.json" for it to function.
+{
+"BOT_TOKEN": "YourTokenHere",    # The token to your discord bot, gotten from the Developer Portal.
+"OWNER_ID": 411365470109958155,  # Your Discord ID! Some functions can only be run by the owner of the bot.
+"PREFIX": "c.",                  # What commands for this bot should be prefixed with.
+"YT_API_KEY": "YourKeyHere",     # Used by audio playing functions to query the YouTube API
+}
