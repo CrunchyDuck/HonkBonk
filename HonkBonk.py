@@ -8,7 +8,7 @@ from discord.ext import commands
 from random import random
 from collections import defaultdict
 from pathlib import Path
-from json import load
+from json import loads
 from scheduler import Scheduler
 import helpers
 
@@ -47,15 +47,10 @@ class MyBot(commands.Bot):
         "float": r"(-?\d+(?:\.\d+)?)",
         "int": r"(-?\d+)"
     }
-    r_newline_whitespace = r"(?<=\n)([ ]+)"  # The whitespace after a new line. Basically, removes indentation.
 
     def __init__(self, settings, **kwargs):
         self.settings = settings
         super().__init__(self.settings["PREFIX"], **kwargs)  # This just runs the original commands.Bot __init__ function.
-
-        # == Add core events ==
-        self.event(self.on_command_error)  # Might move these to cogs.core
-        self.event(self.on_ready)
 
         self.Scheduler = Scheduler()  # Handles commands that run on timers.
 
@@ -75,25 +70,6 @@ class MyBot(commands.Bot):
         self.db = None
         self.cursor = None
 
-    async def on_command_error(self, ctx, error):
-        """Triggered when a prefix is found, but no command is."""
-        if isinstance(error, commands.CommandNotFound):  # Unrecognized command
-            # TODO: Maybe move this into a "adaptive commands" function
-            # Pat reaction.
-            pats = re.search(r"c.((?:pat)+)", ctx.message.content)
-            if pats:
-                num = len(pats.group(1)) // 3
-                await ctx.send("U" + ("wU" * num))
-                return
-
-            # Command not recognized
-            await ctx.send("command no no be is.")
-        else:
-            raise error
-
-    async def on_ready(self):
-        print(f"{self.user} has connected to Discord :) @ {datetime.now()}")
-
     def default_embed(self, title):
         """
         An embed that has the bot's signatures.
@@ -103,7 +79,6 @@ class MyBot(commands.Bot):
             title=title,
             colour=discord.Colour.dark_purple()
         )
-        embed.set_author(name=self.user.name, icon_url=self.user.avatar_url)
 
         return embed
 
@@ -117,6 +92,8 @@ class MyBot(commands.Bot):
         # Find and load cogs.
         #cogs = ["cogs.core"]  # Manually loaded for now
 
+        self.load_extension("cogs.core")
+        self.load_extension("cogs.vc")
         await super().start(self.settings["BOT_TOKEN"], *args, **kwargs)
         return
 
@@ -151,7 +128,7 @@ class MyBot(commands.Bot):
     def unload_extension(self, name):
         super().unload_extension(name)
 
-    async def has_perm(self, input, *, bot_owner=False, dm=True, ignore_bot=True):
+    async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
         """
         Common permissions to be checked to see if a command should run in the given context.
 
@@ -180,7 +157,7 @@ class MyBot(commands.Bot):
         # Checks
         if self.owner_id == input.author.id:
             return True
-        elif bot_owner:
+        elif owner_only:
             return False
 
         # An admin should only be stopped from a command if the room is ignored.
@@ -421,7 +398,8 @@ class MyBot(commands.Bot):
 
 def main():
     with open("settings.json", "r") as f:
-        settings = load(f)  # API tokens/bot settings
+        json_text = helpers.remove_python_comments(f.read())
+        settings = loads(json_text)  # API tokens/bot settings
     intents = discord.Intents.all()  # All intents makes quick testing easier.
     bot = MyBot(settings, intents=intents)
     bot.remove_command("help")  # Default help is ugly.
