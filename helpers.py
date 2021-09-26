@@ -5,6 +5,39 @@ from math import trunc
 """A bunch of functions that are useful."""
 
 
+class HelpCommand:
+    def __init__(self, module, command, function_to_run=None):
+        self.module = module  # The module this command belongs to.
+        self.command = command  # The command to call this helper.
+        self.run = function_to_run  # Function
+
+
+class StateObject:
+    """A simple object that allows easy switching between states."""
+    def __init__(self, *states):
+        self.state_num = 0
+        self.states = states
+
+    @property
+    def state(self):
+        return self.states[self.state_num]
+
+    def next_state(self):
+        self.state_num += 1
+        self.state_num = self.state_num % len(self.states)
+
+
+def remove_python_comments(text: str) -> str:
+    """
+    Removes any python comments from provided text, such as # comment in a json file
+
+    Arguments:
+        text - The text to remove comments from
+    Returns:
+        text with comments removed
+    """
+    return re.sub(r"#.+", "", text)
+
 # TODO: All of these time functions would be better served if they returned an object.
 def time_now():
     """Get the current Unix Epoch time, in seconds."""
@@ -105,6 +138,48 @@ def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, we
     seconds_total += weeks*604800
     return seconds_total
 
+
+def seconds_to_SMPTE(seconds):
+    """Returns a string of SMPTE time. Roughly."""
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+
+    # 0-pad times
+    hours = f"{trunc(hours)}"
+    minutes = f"0{trunc(minutes)}"[-2:]
+    seconds = f"0{trunc(seconds)}"[-2:]
+
+    return f"{hours}:{minutes}:{seconds}"
+
+
+def SMPTE_to_seconds(SMPTE: str) -> int:
+    """Converts an SMPTE time into seconds.
+
+    Arguments:
+        SMPTE: HH:MM:SS.mmmm
+    Returns: Time in seconds
+    """
+    times = re.match(r"^(\d+:)?(\d+:)?(\d+(?:\.\d+)?)$", SMPTE)
+    if not times:
+        return False
+    seconds = 0
+    if times.group(2):  # Hours exists
+        seconds += int(times.group(1)[:-1]) * 3600
+        seconds += int(times.group(2)[:-1]) * 60
+    elif times.group(1):  # Minutes exist
+        seconds += int(times.group(1)[:-1]) * 60
+    t = times.group(3)
+    seconds += float(t)
+
+    return seconds
+
+
+def help_command_embed(bot, description, title=""):
+    embed = bot.default_embed(title)
+    embed.description = description
+    return embed
+
+
 # ==== Potentially useful, removed for now ====
 #
 # def escape_message(message):
@@ -123,22 +198,22 @@ def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, we
 #     indentation_amount = indentation_amount.group(1)
 #     return re.sub(indentation_amount, "", string)
 #
-# def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
-#     """
-#     Convert a Discord snowflake into a date string.
-#     Arguments:
-#         snowflake: A discord snowflake/ID
-#         strftime_val: An strf to use on the datetime object.
-#     Returns:
-#         A string of the date.
-#     """
-#     timestamp = ((int(snowflake) >> 22) + 1420070400000) / 1000
-#     dt = datetime.fromtimestamp(timestamp)
-#     return dt.strftime(strftime_val)
+def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
+    """
+    Convert a Discord snowflake into a date string.
+    Arguments:
+        snowflake: A discord snowflake/ID
+        strftime_val: An strf to use on the datetime object.
+    Returns:
+        A string of the date.
+    """
+    timestamp = ((int(snowflake) >> 22) + 1420070400000) / 1000
+    dt = datetime.fromtimestamp(timestamp)
+    return dt.strftime(strftime_val)
 #
-# def remove_invoke(message):
-#     """Removes the invoking call from a message using RegEx."""
-#     return re.sub("(c\.[^\s]+)", "", message, count=1)
+def remove_invoke(message):
+    """Removes the invoking call from a message."""
+    return re.sub(r"^[^\s]+\s*", "", message, count=1)
 #
 # def get_variable(string, key=None, type=None, pattern=None, default=None):
 #     """
