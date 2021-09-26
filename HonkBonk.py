@@ -10,6 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 from json import loads
 from scheduler import Scheduler
+from reactive_message import ReactiveMessageManager
 import helpers
 
 
@@ -53,6 +54,8 @@ class MyBot(commands.Bot):
         super().__init__(self.settings["PREFIX"], **kwargs)  # This just runs the original commands.Bot __init__ function.
 
         self.Scheduler = Scheduler()  # Handles commands that run on timers.
+        self.ReactiveMessageManager = ReactiveMessageManager(self)
+        self.Scheduler.add(self.ReactiveMessageManager.message_timer_loop, 1)
 
         self.owner_id = self.settings["OWNER_ID"]  # Who owns the bot
         self.uptime_seconds = helpers.time_now()  # Used to check how long the bot has been active for
