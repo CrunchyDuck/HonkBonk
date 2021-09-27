@@ -1,8 +1,6 @@
-from discord.ext import commands
-from typing import Callable
+from typing import Callable, List
 from dataclasses import dataclass
-import asyncio
-from datetime import datetime
+from helpers import time_now
 
 
 class ReactiveMessageManager:
@@ -18,7 +16,7 @@ class ReactiveMessageManager:
     # TODO: Implement wrap
     def create_reactive_message(self, message, message_page_function: Callable, message_pages: list,
                                 reaction_previous: str, reaction_next: str,
-                                *, seconds_active=60, wrap=False):
+                                *, seconds_active: int = 60, wrap: bool = False, users: List[int] = None):
         """
 
         Arguments:
@@ -29,15 +27,19 @@ class ReactiveMessageManager:
             reaction_next - Reaction that calls next page.
 
             seconds_active - How long the will react for.
+            wrap - Whether to wrap to the start page when we reach the end.
+            users - A list of user IDs
         """
-        current_time = datetime.now()
-        rm = ReactingMessage(message, message_page_function, message_pages, reaction_previous, reaction_next, 0, wrap, current_time, seconds_active)
-        self.reacting_message[message] = rm
+        current_time = time_now()
+        rm = ReactingMessage(message, message_page_function, message_pages, reaction_previous, reaction_next,
+                             0, wrap, current_time, seconds_active, users)
+        self.reacting_message[message.id] = rm
 
     async def message_timer_loop(self, current_time):
         rm_copy = self.reacting_message.copy()
         for message, reacting_message in rm_copy.items():
-            time_passed = reacting_message.started_time - current_time
+            time_passed = current_time - reacting_message.started_time
+            print(time_passed)
             if not time_passed >= reacting_message.seconds_active:
                 # Not enough time has passed.
                 continue
@@ -47,24 +49,31 @@ class ReactiveMessageManager:
 
     #@commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        reaction = payload.emoji
-        user = payload.member
-        await self.message_react(reaction, user)
+        reaction = str(payload.emoji)
+        message_id = payload.message_id
+        user_id = payload.user_id
+        await self.message_react(reaction, message_id, user_id)
 
     #@commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
-        reaction = payload.emoji
-        user = payload.member
-        await self.message_react(reaction, user)
+        reaction = str(payload.emoji)
+        message_id = payload.message_id
+        user_id = payload.user_id
+        await self.message_react(reaction, message_id, user_id)
 
-    async def message_react(self, emoji, message_id):
-        # TODO: User checks?
+    async def message_react(self, emoji, message_id, user_id):
         if message_id not in self.reacting_message:
+            print("not message")
             return
         reacting_message = self.reacting_message[message_id]
+        # Is it from a user we're tracking?
+        if reacting_message.users and user_id not in reacting_message.users:
+            print("not user")
+            return
         # Is the reaction one we care about?
         reaction_str = emoji
         if reaction_str not in [reacting_message.reaction_previous, reacting_message.reaction_next]:
+            print("not emoji")
             return
 
         try:
@@ -73,8 +82,9 @@ class ReactiveMessageManager:
             else:
                 new_message = reacting_message.next_page()
         except IndexError:
+            print("index error")
             return
-        await reacting_message.edit(content=new_message)
+        await reacting_message.message.edit(embed=new_message)
 
 
 @dataclass
@@ -86,10 +96,11 @@ class ReactingMessage:
     reaction_next: str
     page_num: int
     wrap: bool
-    started_time: object
+    started_time: float
     seconds_active: int
+    users: list
 
-    def next_page(self):
+    def next_page(self) -> str:
         self.page_num += 1
         # Out of bounds
         if self.page_num >= len(self.message_pages):
@@ -100,7 +111,7 @@ class ReactingMessage:
                 raise IndexError
         return self.get_page()
 
-    def previous_page(self):
+    def previous_page(self) -> str:
         self.page_num -= 1
         # Out of bounds
         if self.page_num < 0:
@@ -111,7 +122,7 @@ class ReactingMessage:
                 raise IndexError
         return self.get_page()
 
-    def get_page(self):
+    def get_page(self) -> str:
         page = self.message_pages[self.page_num]
-        self.started_time = datetime.now()
+        self.started_time = time_now()
         return self.message_page_function(page)
