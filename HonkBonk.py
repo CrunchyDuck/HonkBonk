@@ -110,12 +110,6 @@ class MyBot(commands.Bot):
                 self.load_extension(cog_name)
         await super().start(*args, **kwargs)
 
-    def load_extension(self, name):
-        super().load_extension(name)
-
-    def unload_extension(self, name):
-        super().unload_extension(name)
-
     async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
         """
         Common permissions to be checked to see if a command should run in the given context.
