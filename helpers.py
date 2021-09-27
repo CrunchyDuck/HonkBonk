@@ -2,6 +2,7 @@ import time
 from datetime import datetime
 import re
 from math import trunc
+import discord
 """A bunch of functions that are useful."""
 
 
@@ -139,6 +140,7 @@ def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, we
     return seconds_total
 
 
+# TODO: Don't make everything hours/minutes/etc. Minimize return.
 def seconds_to_SMPTE(seconds):
     """Returns a string of SMPTE time. Roughly."""
     minutes, seconds = divmod(seconds, 60)
@@ -175,29 +177,27 @@ def SMPTE_to_seconds(SMPTE: str) -> int:
 
 
 def help_command_embed(bot, description, title=""):
-    embed = bot.default_embed(title)
+    embed = default_embed()
+    embed.title = title
     embed.description = description
     return embed
 
 
-# ==== Potentially useful, removed for now ====
-#
-# def escape_message(message):
-#     """Make a message 'safe' to send by removing any pings"""
-#
-#     m = message
-#     m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
-#     m = m.replace("@", "@\u200b")
-#     m = m.replace("@everyone", f"@\u200beveryone")
-#     return m
-#
-# def remove_indentation(string):
-#     indentation_amount = re.search(MyBot.r_newline_whitespace, string)
-#     if not indentation_amount:
-#         return string
-#     indentation_amount = indentation_amount.group(1)
-#     return re.sub(indentation_amount, "", string)
-#
+def default_embed():
+    embed = discord.Embed(
+        colour=discord.Colour.dark_purple()
+    )
+    return embed
+
+
+def remove_indentation(string):
+    indentation_amount = re.search(r"(?<=\n)([ ]+)", string)
+    if not indentation_amount:
+        return string
+    indentation_amount = indentation_amount.group(1)
+    return re.sub(indentation_amount, "", string)
+
+
 def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
     """
     Convert a Discord snowflake into a date string.
@@ -210,10 +210,23 @@ def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
     timestamp = ((int(snowflake) >> 22) + 1420070400000) / 1000
     dt = datetime.fromtimestamp(timestamp)
     return dt.strftime(strftime_val)
-#
+
+
 def remove_invoke(message):
     """Removes the invoking call from a message."""
     return re.sub(r"^[^\s]+\s*", "", message, count=1)
+
+# ==== Potentially useful, removed for now ====
+#
+# def escape_message(message):
+#     """Make a message 'safe' to send by removing any pings"""
+#
+#     m = message
+#     m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
+#     m = m.replace("@", "@\u200b")
+#     m = m.replace("@everyone", f"@\u200beveryone")
+#     return m
+#
 #
 # def get_variable(string, key=None, type=None, pattern=None, default=None):
 #     """

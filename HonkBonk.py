@@ -55,7 +55,7 @@ class MyBot(commands.Bot):
 
         self.Scheduler = Scheduler()  # Handles commands that run on timers.
         self.ReactiveMessageManager = ReactiveMessageManager(self)
-        self.Scheduler.add(self.ReactiveMessageManager.message_timer_loop, 1)
+        self.Scheduler.add(self.ReactiveMessageManager.message_timer_loop, 5)
 
         self.owner_id = self.settings["OWNER_ID"]  # Who owns the bot
         self.uptime_seconds = helpers.time_now()  # Used to check how long the bot has been active for
@@ -72,18 +72,6 @@ class MyBot(commands.Bot):
         # Assigned in start(), as they run on a different thread.
         self.db = None
         self.cursor = None
-
-    def default_embed(self, title):
-        """
-        An embed that has the bot's signatures.
-        returns: :class:discord.Embed
-        """
-        embed = discord.Embed(
-            title=title,
-            colour=discord.Colour.dark_purple()
-        )
-
-        return embed
 
     async def start(self, *args, **kwargs):
         """
