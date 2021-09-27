@@ -1,7 +1,6 @@
 import asyncio
 import discord
 import logging
-import re
 import sqlite3
 from datetime import datetime
 from discord.ext import commands
@@ -15,7 +14,6 @@ import helpers
 
 
 class MyBot(commands.Bot):
-    # TODO: Document functions.
     """
     An expanded version of discord.ext.commands.Bot.
 
@@ -55,7 +53,6 @@ class MyBot(commands.Bot):
 
         self.Scheduler = Scheduler()  # Handles commands that run on timers.
         self.ReactiveMessageManager = ReactiveMessageManager(self)
-        self.Scheduler.add(self.ReactiveMessageManager.message_timer_loop, 5)
 
         self.owner_id = self.settings["OWNER_ID"]  # Who owns the bot
         self.uptime_seconds = helpers.time_now()  # Used to check how long the bot has been active for

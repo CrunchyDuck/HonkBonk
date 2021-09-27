@@ -12,11 +12,12 @@ class ReactiveMessageManager:
         self.reacting_message = {}
         bot.add_listener(self.on_raw_reaction_add)
         bot.add_listener(self.on_raw_reaction_remove)
+        bot.Scheduler.add(self.message_timer_loop, 5)
 
     # TODO: Implement wrap
     def create_reactive_message(self, message, message_page_function: Callable, message_pages: list,
                                 reaction_previous: str, reaction_next: str,
-                                *, seconds_active: int = 60, wrap: bool = False, users: List[int] = None):
+                                *, seconds_active: int = 20, wrap: bool = False, users: List[int] = None):
         """
 
         Arguments:
@@ -36,13 +37,18 @@ class ReactiveMessageManager:
         self.reacting_message[message.id] = rm
 
     async def message_timer_loop(self, current_time):
+        """Regularly checks whether a message should stop responding to reactions.
+
+        Arguments:
+            current_time - Unix epoch seconds.
+        """
         rm_copy = self.reacting_message.copy()
-        for message, reacting_message in rm_copy.items():
+        for _, reacting_message in rm_copy.items():
             time_passed = current_time - reacting_message.started_time
-            print(time_passed)
             if not time_passed >= reacting_message.seconds_active:
                 # Not enough time has passed.
                 continue
+            message = reacting_message.message
             await message.remove_reaction(reacting_message.reaction_previous)
             await message.remove_reaction(reacting_message.reaction_next)
             del self.reacting_message[message]
@@ -63,17 +69,14 @@ class ReactiveMessageManager:
 
     async def message_react(self, emoji, message_id, user_id):
         if message_id not in self.reacting_message:
-            print("not message")
             return
         reacting_message = self.reacting_message[message_id]
         # Is it from a user we're tracking?
         if reacting_message.users and user_id not in reacting_message.users:
-            print("not user")
             return
         # Is the reaction one we care about?
         reaction_str = emoji
         if reaction_str not in [reacting_message.reaction_previous, reacting_message.reaction_next]:
-            print("not emoji")
             return
 
         try:
@@ -81,8 +84,7 @@ class ReactiveMessageManager:
                 new_message = reacting_message.previous_page()
             else:
                 new_message = reacting_message.next_page()
-        except IndexError:
-            print("index error")
+        except IndexError:  # Reaction would put out of bounds, and wrap is disabled.
             return
         await reacting_message.message.edit(embed=new_message)
 
