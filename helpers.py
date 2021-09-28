@@ -141,17 +141,32 @@ def time_to_seconds(*, milliseconds=0, seconds=0, minutes=0, hours=0, days=0, we
 
 
 # TODO: Don't make everything hours/minutes/etc. Minimize return.
-def seconds_to_SMPTE(seconds):
-    """Returns a string of SMPTE time. Roughly."""
+def seconds_to_SMPTE(seconds, *, return_format="minimal") -> str:
+    """Returns a string of SMPTE time. Roughly.
+
+    Arguments:
+        return_format - How the string should be formatted. "minimal" = no padding, "verbose" = h:mm:ss
+    """
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)
 
-    # 0-pad times
-    hours = f"{trunc(hours)}"
-    minutes = f"0{trunc(minutes)}"[-2:]
-    seconds = f"0{trunc(seconds)}"[-2:]
-
-    return f"{hours}:{minutes}:{seconds}"
+    # This code is a bit verbose but it was quick to make.
+    if return_format == "minimal":
+        if hours:
+            hours = f"{trunc(hours)}"
+            minutes = f"0{trunc(minutes)}"[-2:]
+            seconds = f"0{trunc(seconds)}"[-2:]
+            return f"{hours}:{minutes}:{seconds}"
+        else:
+            minutes = trunc(minutes)
+            seconds = f"0{trunc(seconds)}"[-2:]
+            return f"{minutes}:{seconds}"
+    elif return_format == "verbose":
+        # 0-pad times
+        hours = f"{trunc(hours)}"
+        minutes = f"0{trunc(minutes)}"[-2:]
+        seconds = f"0{trunc(seconds)}"[-2:]
+        return f"{hours}:{minutes}:{seconds}"
 
 
 def SMPTE_to_seconds(SMPTE: str) -> int:
