@@ -8,10 +8,11 @@ import pytube.exceptions as pt_exceptions
 from pytube import extract, request
 import re
 from time import time
-import requests
+import requests  # The lack of async support in requests might lead me to replacing it.
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import ceil
+import aiohttp
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -20,6 +21,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     def __init__(self, bot):
         self.bot = bot
         self.connections = {}  # A dictionary of guild_id: ServerAudio
+        self.session = aiohttp.ClientSession()
 
         # fun stuff
         self.not_in_vc_replies = [
@@ -70,11 +72,28 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Try to get a link.
         url_match = re.match("(^[^ ]+)", content)
         if url_match:
+            # Try to match a YouTube video.
             try:
                 video_id = extract.video_id(url_match.group(1))
-                song_data = PlaylistItem.get_youtube_playlist_item_data(self.yt_api_key, video_id)
+                item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_id, self.session)
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                await vc.add_song(**song_data)
+                if await vc.add_playlist_item(item):
+                    await ctx.send("Added song!")  # TODO: Improve return of "added song/playlist"
+                return
+            except InvalidVideoId:
+                await ctx.send("Cannot find a video with the provided URL.")
+                return
+            except pt_exceptions.RegexMatchError:
+                pass
+
+            # Try to match a YouTube playlist.
+            try:
+                playlist_id = extract.playlist_id(url_match.group(1))
+                playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
+                playlist_items = await PlaylistItem.create_from_playlist_id(self.yt_api_key, playlist_id, self.session)
+                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+                await vc.add_playlist_list(playlist_items)
+                await ctx.send("Added playlist!")
                 return
             except InvalidVideoId:
                 await ctx.send("Cannot find a video with the provided URL.")
@@ -108,11 +127,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
             video_data = r[result_num]
             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-            song_data = PlaylistItem.get_youtube_playlist_item_data(self.yt_api_key, video_data["id"]["videoId"])
-            await vc.add_song(**song_data)
+            item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_data["id"]["videoId"], self.session)
+            await vc.add_playlist_item(item)
             return
-
-        # TODO: Check if playlist link and add.
 
         # Resume a paused song.
         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
@@ -157,6 +174,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.skip", f"{prefix}.s", f"{prefix}.next"])
     async def skip_song(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
+        # TODO: Remove song from position in queue
 
         # Get the appropriate ServerAudio.
         vc = await self.get_connected_vc(ctx)
@@ -433,19 +451,31 @@ class Player(discord.FFmpegPCMAudio):
 @dataclass
 class PlaylistItem:
     """Represents a video to be played by ServerAudio"""
-    url: str
+    url: str = field(repr=False)
     title: str
     author: str
-    description: str
-    duration: int
+    description: str = field(repr=False)
+    duration: int = field(repr=False)
     # TODO: Add who added song
 
+    # TODO: Check how many youtube data api calls are made for various requests. Limit is 10K a day.
     @staticmethod
-    def get_youtube_playlist_item_data(youtube_api_key, video_id):
+    async def create_from_video_id(youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
         """Returns the data required to fill a PlaylistItem."""
+        # TODO: Add a limit on duration.
         data = {}
+
+        api_endpoint = "https://www.googleapis.com/youtube/v3/videos"
         params = {"part": "snippet,contentDetails", "key": youtube_api_key, "id": video_id}
-        r = requests.get("https://www.googleapis.com/youtube/v3/videos", params=params).json()["items"]
+
+        # I use the requests library to build my url as it's more succinct and reliable.
+        url_make = requests.models.PreparedRequest()
+        url_make.prepare_url(api_endpoint, params)
+        url_with_params = url_make.url
+
+        r = await session.request(method="GET", url=url_with_params)
+        r = await r.json()
+        r = r["items"]
         if len(r) == 0:
             raise InvalidVideoId
         r = r[0]
@@ -473,7 +503,37 @@ class PlaylistItem:
         #r["statistics"]["dislikeCount"]
         #r["statistics"]["viewCount"]
         #r["topicDetails"]  # Has wikipedia links related to the videos??
-        return data
+        return PlaylistItem(**data)
+
+    @staticmethod
+    async def create_from_playlist_id(youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession) -> list['PlaylistItem']:
+        # TODO: Implement playlist compilation
+        #session = aiohttp.ClientSession()
+        api_endpoint = "https://www.googleapis.com/youtube/v3/playlistItems"
+        params = {"part": "contentDetails", "key": youtube_api_key, "playlistId": playlist_id, "maxResults": 50}
+
+        # I use the requests library to build my url as it's more succinct and reliable.
+        r = requests.models.PreparedRequest()
+        r.prepare_url(api_endpoint, params)
+        url_with_params = r.url
+
+        # FIXME: Error handling in the event the API returns bad. See https://developers.google.com/youtube/v3/docs/playlistItems/list#errors
+        #total_videos = r["pageInfo"]["totalResults"]
+        item_list = []
+        while True:
+            r = await session.request(method="GET", url=url_with_params)
+            r = await r.json()
+            for video_data in r["items"]:
+                # A playlistItems request doesn't give us the "duration" of videos, so we need to perform another request.
+                vid_id = video_data["contentDetails"]["videoId"]
+                item = await PlaylistItem.create_from_video_id(youtube_api_key, vid_id, session)
+                item_list.append(item)
+
+            if "nextPageToken" not in r:  # last page
+                break
+            params["pageToken"] = r["nextPageToken"]
+
+        return item_list
 
 
 # TODO: Make loop all work
@@ -485,9 +545,9 @@ class ServerAudio:
         # FIXME: The first song in the playlist tends to be skipped.
         #  Could be fixed by combining currently_playing and playlist, such that playlist[0] == currently_playing
         self.playlist = []  # List of PlaylistItem.
-        self.currently_playing = None
         self.player = None
         self.download_progress = -1
+        self.downloading = False
         self.stop_download = False
         self.video_path = f"./attachments/{self.vc.guild.id}.mp4"
         self.async_loop = async_loop  # Used to run song_end. TODO: Make it so I don't have to do this.
@@ -504,30 +564,35 @@ class ServerAudio:
                 self.song_ended = False
             await asyncio.sleep(1)
 
-    async def add_song(self, url, title, author, description, duration):
-        item = PlaylistItem(url, title, author, description, duration)
-        self.playlist.append(item)
-        if self.currently_playing is None:  # Only the song that was just added exists.
-            await self.play()
-        else:
-            await self.message_channel.send(f"Added \"{item.title}\" by \"{item.author}\"")
-
     async def add_playlist_item(self, item: PlaylistItem):
         """Wrapper for add_song to allow for PlaylistItems"""
-        await self.add_song(item.url, item.title, item.author, item.description, item.duration)
+        #await self.add_song(item.url, item.title, item.author, item.description, item.duration)
+        self.playlist.append(item)
+        if len(self.playlist) == 1:  # Only the song that was just added exists.
+            await self.play()
+        else:
+            return True
+            #await self.message_channel.send(f"Added \"{item.title}\" by \"{item.author}\"")
+
+    async def add_playlist_list(self, items: list[PlaylistItem]):
+        for item in items:
+            await self.add_playlist_item(item)
+        return True
 
     async def play(self):
         """
         Play paused or queued audio.
         """
-        # Song isn't queued.
+        # Song isn't playing/paused.
         if self.player is None:
-            res = await self.next_song()
-            if res is not None:
-                return res
-            self.player = Player(self.video_path, self.currently_playing.duration)
-            self.vc.play(self.player, after=lambda e: self.song_ended_event(e))
-            return f"Playing: {self.currently_playing.title}"
+            # Prepare the first item on the playlist.
+            if not self.playlist:
+                # Playlist empty
+                return
+            await self.download_video(self.playlist[0])
+            self.player = Player(self.video_path, self.playlist[0].duration)
+            self.vc.play(self.player, after=self.song_ended_event)
+            return f"Playing: {self.playlist[0].title}"
         # Song was paused.
         else:
             self.vc.resume()
@@ -542,7 +607,7 @@ class ServerAudio:
             await self.message_channel.send("Seek invalid!")
             return
         self.vc.pause()
-        self.player = Player(self.video_path, self.currently_playing.duration, seek=seek_in_seconds)
+        self.player = Player(self.video_path, self.playlist[0].duration, seek=seek_in_seconds)
         self.vc.play(self.player, after=lambda e: self.song_ended_event(e))
 
     def pause(self):
@@ -550,24 +615,24 @@ class ServerAudio:
 
     async def next_song(self):
         """Gets the next song ready to be played."""
-        # FIXME: it fails at going to the next song hehe
-        self.vc.stop()
+        self.vc.pause()
         if not self.playlist:
-            return "No next song!"
+            raise PlaylistEmpty
 
-        next_item = self.playlist.pop(0)
-        await self.download_video(next_item)
-        self.currently_playing = next_item
+        await self.download_video(self.playlist[0])
+        self.player = Player(self.video_path, self.playlist[0].duration)
+        self.vc.play(self.player, after=self.song_ended_event)
 
     async def download_video(self, item: PlaylistItem):
         # FIXME: If someone requests two songs in quick succession, both will be downloaded, first will be played, other ignored.
+        if self.downloading:
+            return
+        self.downloading = True
         try:
             YouTubeObj = pytube.YouTube(item.url)
-        except pt_exceptions.RegexMatchError:
-            print("Could not find url!")
-            return
         except pt_exceptions.VideoPrivate:
-            print("Video is private!")
+            await self.message_channel.send("Video is private!")
+            self.downloading = False
             return
 
         # FIXME: Fix this to not download the highest quality video possible.
@@ -597,17 +662,18 @@ class ServerAudio:
                     await update_message.edit(content=f":inbox_tray: Downloading: \"{item.title}\"...\n{self.download_progress*100:.1f}%")
                     await asyncio.sleep(0.1)  # Let the program send out a heartbeat.
         self.download_progress = -1
+        self.downloading = False
         await update_message.edit(content=f"Playing: \"{item.title}\"")
-        await self.play()
 
     async def song_end(self):
-        if self.loop.state == "all":  # FIXME: For some reason this shit doesn't work
-            await self.add_playlist_item(self.currently_playing)
+        #if self.loop.state == "all":  # FIXME: For some reason this shit doesn't work
+        #    await self.add_playlist_item(self.currently_playing)
 
         if self.loop.state == "one":
             await self.seek_song(0)
         else:
             self.player = None  # Clear old player away.
+            self.playlist.pop(0)
         await self.play()  # Play the next song.
 
     def song_ended_event(self, e):
@@ -637,7 +703,7 @@ class ServerAudio:
         page_total = ceil(song_total / 10)
         loop_state = self.loop.state
         guild_name = self.message_channel.guild
-        now_playing = self.currently_playing
+        now_playing = self.playlist[0] if self.playlist else None
 
         # Normal playlist.
         if self.playlist:
@@ -657,7 +723,7 @@ class ServerAudio:
                 page.total_time = total_time
             return pages
         # Only the song currently playing is on the list.
-        elif self.currently_playing:
+        elif now_playing:
             total_time += now_playing.duration
             p = self.Page([], 0, now_playing, guild_name, loop_state, 0, 0, total_time)
             return [p]
@@ -666,6 +732,7 @@ class ServerAudio:
 
     @staticmethod
     def display_playlist(page_data):
+        # TODO: Make an exception for the first entry on the first page
         embed = helpers.default_embed()
         embed.title = f"**Queue for {page_data.guild_name}**"
         description = f"""__Now Playing:__
@@ -705,6 +772,8 @@ class ServerAudio:
 
 # Exceptions
 class InvalidVideoId(Exception):
+    pass
+class PlaylistEmpty(Exception):
     pass
 
 
