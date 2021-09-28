@@ -70,6 +70,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     async def play_song(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
         content = helpers.remove_invoke(ctx.message.content)
+        # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
         # Try to get a link.
         url_match = re.match("(^[^ ]+)", content)
         if url_match:
@@ -83,7 +84,14 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                     return
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
-                    await ctx.send("Added song!")  # TODO: Improve return of "added song/playlist"
+                    embed = helpers.default_embed()
+                    embed.set_image(url=item.thumbnail_url)
+                    embed.title = "Added to queue"
+                    embed.description = f"[{item.title}]({item.url})"
+                    embed.add_field("Channel", item.author)
+                    embed.add_field("Duration", helpers.seconds_to_SMPTE(item.duration))
+                    # TODO: Time until playing?
+                    await ctx.send(embed=embed)
                 return
             except InvalidVideoId:
                 await ctx.send("Cannot find a video with the provided URL.")
@@ -98,7 +106,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 playlist_items = await PlaylistItem.create_from_playlist_id(self.yt_api_key, playlist_id, self.session)
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 await vc.add_playlist_list(playlist_items)
-                await ctx.send("Added playlist!")
+                await ctx.send("Added playlist!")  # TODO: Improve return of "added playlist"
                 return
             except InvalidVideoId:
                 await ctx.send("Cannot find a video with the provided URL.")
@@ -519,9 +527,9 @@ class PlaylistItem:
     author: str
     description: str = field(repr=False)
     duration: int = field(repr=False)
+    thumbnail_url: str = field(default="", repr=False)
     # TODO: Add who added song
 
-    # TODO: Check how many youtube data api calls are made for various requests. Limit is 10K a day.
     @staticmethod
     async def create_from_video_id(youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
         """Returns the data required to fill a PlaylistItem."""
@@ -546,6 +554,7 @@ class PlaylistItem:
         data["title"] = r["snippet"]["title"]
         data["author"] = r["snippet"]["channelTitle"]
         data["description"] = r["snippet"]["description"]
+        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]
 
         dur_text = r["contentDetails"]["duration"]  # Yt provides a weird format.
         match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
@@ -562,7 +571,6 @@ class PlaylistItem:
             raise VideoTooLong
 
         # Potentially useful data.
-        #r["snippet"]["thumbnails"]["default"]
         #r["statistics"]["viewCount"]
         #r["statistics"]["likeCount"]
         #r["statistics"]["dislikeCount"]
@@ -742,7 +750,10 @@ class ServerAudio:
         path = f"./attachments/{self.vc.guild.id}.mp4"
         start_time = time()
         self.stop_download = False  # Removes any previous requests to stop the download.
-        update_message = await self.message_channel.send(f":inbox_tray: Downloading: \"{item.title}\"...\n0%")
+        embed = helpers.default_embed()  # Downloading embed.
+        embed.set_image(item.thumbnail_url)
+        embed = self.update_downloading_embed(embed, item, 0)
+        update_message = await self.message_channel.send(f"")
         with open(path, "wb") as f:
             stream = pytube.request.stream(stream.url)
             while amount_downloaded < size:
@@ -758,11 +769,31 @@ class ServerAudio:
                 if now_time - start_time >= 1:
                     self.download_progress = amount_downloaded / size
                     start_time = now_time
-                    await update_message.edit(content=f":inbox_tray: Downloading: \"{item.title}\"...\n{self.download_progress*100:.1f}%")
-                    await asyncio.sleep(0.1)  # Let the program send out a heartbeat.
+                    embed = self.update_downloading_embed(embed, item, self.download_progress)
+                    await update_message.edit(embed=embed)
+                    await asyncio.sleep(0.2)  # Let the program send out a heartbeat.
         self.download_progress = -1
         self.downloading = False
-        await update_message.edit(content=f"Playing: \"{item.title}\"")
+
+        # Create the "Now playing" embed
+        embed.title = "**Now Playing**"
+        embed.description = f"({item.title})[{item.url}]\n\n`Length:` {item.duration}"
+        await update_message.edit(embed=embed)
+
+    @staticmethod
+    def update_downloading_embed(embed, item: PlaylistItem, percent: float):
+        """
+        Arguments:
+            embed - The embed to modify
+            item - The PlaylistItem being downloaded.
+            percent - Provided as a decimal from 0 to 1
+        """
+        desc = f":inbox_tray: Downloading: ({item.title}[{item.url}]...\n"
+        tenths_done = int(percent * 100) // 10
+        progress_bar = "█" * tenths_done
+        progress_bar += "░" * (10 - tenths_done)
+        embed.description = f"{desc}\n`{progress_bar} {percent:.1f}%`"
+        return embed
 
     async def song_end(self):
         if self.loop.state == "all":
@@ -838,7 +869,6 @@ class ServerAudio:
 
     @staticmethod
     def display_playlist(page_data):
-        # TODO: Make an exception for the first entry on the first page
         embed = helpers.default_embed()
         embed.title = f"**Queue for {page_data.guild_name}**"
         description = f"""__Now Playing:__
@@ -850,13 +880,15 @@ class ServerAudio:
             for song_num in range(len(page_data.play_list)):
                 song = page_data.play_list[song_num]
                 position = song_num + (page_data.page_num * 10)
+                if position == 0:
+                    continue
                 duration = helpers.seconds_to_SMPTE(song.duration)
                 description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}`\n"
             footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total} | Looping {page_data.loop_state}"
-            description += f"**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**"
+            description += f"**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**\n**Looping: {page_data.loop_state}**"
         else:
-            description += "\nNothing! :)\n"
-            footer_text = f"Page 0/0 | Looping: {page_data.loop_state}"
+            description += f"\nNothing! :)\n\n**Looping: {page_data.loop_state}**"
+            footer_text = f"Page 0/0"
 
         embed.description = description
         embed.set_footer(text=footer_text)
