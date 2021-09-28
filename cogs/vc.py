@@ -204,7 +204,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             ctx.send(":(")
             return
 
-        await vc.next_song()
+        try:
+            await vc.next_song()
+        except PlaylistEmpty:
+            pass
+        await ctx.send(":fast_forward: Skipped!")
 
     @commands.command(aliases=[f"{prefix}.repeat", f"{prefix}.r", f"{prefix}.loop"])
     async def repeat_selection(self, ctx):
@@ -657,6 +661,7 @@ class ServerAudio:
     async def next_song(self):
         """Gets the next song ready to be played."""
         self.vc.pause()
+        self.playlist.pop(0)  # remove current song.
         if not self.playlist:
             raise PlaylistEmpty
 
