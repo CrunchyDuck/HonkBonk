@@ -12,6 +12,7 @@ import requests  # The lack of async support in requests might lead me to replac
 import os
 from dataclasses import dataclass, field
 from math import ceil
+from random import shuffle
 import aiohttp
 
 
@@ -75,7 +76,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             # Try to match a YouTube video.
             try:
                 video_id = extract.video_id(url_match.group(1))
-                item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_id, self.session)
+                try:
+                    item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_id, self.session)
+                except VideoTooLong:
+                    await ctx.send("Video too long! 3 hour limit.")
+                    return
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
                     await ctx.send("Added song!")  # TODO: Improve return of "added song/playlist"
@@ -127,7 +132,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
             video_data = r[result_num]
             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-            item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_data["id"]["videoId"], self.session)
+            try:
+                item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_data["id"]["videoId"], self.session)
+            except VideoTooLong:
+                await ctx.send("v-v-video too long D:")
+                return
             await vc.add_playlist_item(item)
             return
 
@@ -193,7 +202,22 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("Invalid s-seek x3c")
             return
 
-    # TODO: Make c.vc.clear for playlist.
+    @commands.command(aliases=[f"{prefix}.clear"])
+    async def clear_playlist(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=False): return
+        # Get the appropriate ServerAudio.
+        vc = await self.get_connected_vc(ctx)
+        if vc is None:
+            ctx.send("not in a vc silly uwu")
+            return
+
+        try:
+            await vc.clear_playlist()
+        except PlaylistEmpty:
+            await ctx.send("a-alwedy empty owo")
+            return
+        await ctx.send("wiped clean ;3")
+
     @commands.command(aliases=[f"{prefix}.skip", f"{prefix}.s", f"{prefix}.next"])
     async def skip_song(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
@@ -217,14 +241,24 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Switch between loop none, loop 1, loop all
         vc = await self.get_connected_vc(ctx)
         if not vc:
+            await ctx.send("Not in a VC!")
             return
         vc.loop.next_state()
         await ctx.send(f":repeat: **Looping {vc.loop.state}**")
 
     @commands.command(aliases=[f"{prefix}.shuffle", f"{prefix}.jumble", f"{prefix}.mix", f"{prefix}.shake"])
     async def shuffle_list(self, ctx):
-        # TODO: Add shuffle
-        pass
+        if not await self.bot.has_perm(ctx, dm=False): return
+        # Switch between loop none, loop 1, loop all
+        vc = await self.get_connected_vc(ctx)
+        if not vc:
+            await ctx.send("Not in a VC!")
+            return
+        try:
+            vc.shuffle()
+        except PlaylistEmpty:
+            await ctx.send("Nothing to shuffle!")
+            return
 
     @commands.command(aliases=[f"{prefix}.pause", f"{prefix}.stop", f"{prefix}.shut", f"{prefix}.no"])
     async def pause_song(self, ctx):
@@ -491,7 +525,6 @@ class PlaylistItem:
     @staticmethod
     async def create_from_video_id(youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
         """Returns the data required to fill a PlaylistItem."""
-        # TODO: Add a limit on duration.
         data = {}
 
         api_endpoint = "https://www.googleapis.com/youtube/v3/videos"
@@ -525,6 +558,9 @@ class PlaylistItem:
             dur += int(match.group(3))
         data["duration"] = dur
 
+        if dur >= 10800:  # 3 hour long video limit
+            raise VideoTooLong
+
         # Potentially useful data.
         #r["snippet"]["thumbnails"]["default"]
         #r["statistics"]["viewCount"]
@@ -555,7 +591,10 @@ class PlaylistItem:
             for video_data in r["items"]:
                 # A playlistItems request doesn't give us the "duration" of videos, so we need to perform another request.
                 vid_id = video_data["contentDetails"]["videoId"]
-                item = await PlaylistItem.create_from_video_id(youtube_api_key, vid_id, session)
+                try:
+                    item = await PlaylistItem.create_from_video_id(youtube_api_key, vid_id, session)
+                except VideoTooLong:
+                    continue
                 item_list.append(item)
 
             if "nextPageToken" not in r:  # last page
@@ -565,7 +604,6 @@ class PlaylistItem:
         return item_list
 
 
-# TODO: Make loop all work
 # Requires FFMPEG
 class ServerAudio:
     def __init__(self, voice_client, message_channel, async_loop, yt_api_key):
@@ -627,6 +665,13 @@ class ServerAudio:
             self.vc.resume()
             return ":arrow_forward: **Resuming**"
 
+    def shuffle(self):
+        if not self.playlist:
+            raise PlaylistEmpty
+        current_song = self.playlist.pop(0)
+        shuffle(self.playlist)
+        self.playlist.insert(current_song, 0)
+
     def seek_song(self, seek_in_seconds: int):
         """
 
@@ -671,6 +716,12 @@ class ServerAudio:
         await self.download_video(self.playlist[0])
         self.player = Player(self.video_path, self.playlist[0].duration)
         self.vc.play(self.player, after=self.song_ended_event)
+
+    def clear_playlist(self):
+        if not self.playlist:
+            raise PlaylistEmpty
+        current_song = self.playlist.pop(0)
+        self.playlist = [current_song]
 
     async def download_video(self, item: PlaylistItem):
         if self.downloading:
@@ -750,9 +801,15 @@ class ServerAudio:
         total_time = 0
         song_total = len(self.playlist)
         page_total = ceil(song_total / 10)
-        loop_state = self.loop.state
         guild_name = self.message_channel.guild
         now_playing = self.playlist[0] if self.playlist else None
+        loop_state = self.loop.state
+        if loop_state == "one":
+            loop_state = ":repeat_one:"
+        elif loop_state == "all":
+            loop_state = ":repeat:"
+        else:
+            loop_state = ":regional_indicator_x:"
 
         # Normal playlist.
         if self.playlist:
@@ -795,13 +852,12 @@ class ServerAudio:
                 position = song_num + (page_data.page_num * 10)
                 duration = helpers.seconds_to_SMPTE(song.duration)
                 description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}`\n"
-            footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total}"
+            footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total} | Looping {page_data.loop_state}"
             description += f"**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**"
         else:
             description += "\nNothing! :)\n"
-            footer_text = f"Page 0/0"
+            footer_text = f"Page 0/0 | Looping: {page_data.loop_state}"
 
-        # TODO: Add loop state to footer
         embed.description = description
         embed.set_footer(text=footer_text)
         return embed
@@ -821,6 +877,8 @@ class ServerAudio:
 
 # Exceptions
 class InvalidVideoId(Exception):
+    pass
+class VideoTooLong(Exception):
     pass
 class PlaylistEmpty(Exception):
     pass
