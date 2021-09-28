@@ -193,6 +193,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("Invalid s-seek x3c")
             return
 
+    # TODO: Make c.vc.clear for playlist.
     @commands.command(aliases=[f"{prefix}.skip", f"{prefix}.s", f"{prefix}.next"])
     async def skip_song(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
@@ -205,9 +206,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         try:
-            await vc.next_song()
+            await vc.skip_song()
         except PlaylistEmpty:
-            pass
+            return
         await ctx.send(":fast_forward: Skipped!")
 
     @commands.command(aliases=[f"{prefix}.repeat", f"{prefix}.r", f"{prefix}.loop"])
@@ -459,6 +460,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
 class Player(discord.FFmpegPCMAudio):
     def __init__(self, source, duration, *, seek=0):
+        if seek == duration:
+            seek -= 0.5  # ffmpeg gives a warning if we seek to the end of a song.
         self.current_time = seek  # Time in seconds
         #pipes = subprocess.Popen(rf"""ffprobe -i {source} -show_entries format=duration -v quiet -of csv="p=0" """, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         #self.length_of_song = float(pipes.stdout.read())
@@ -658,12 +661,12 @@ class ServerAudio:
     def pause(self):
         self.vc.pause()
 
-    async def next_song(self):
+    async def skip_song(self):
         """Gets the next song ready to be played."""
         self.vc.pause()
-        self.playlist.pop(0)  # remove current song.
         if not self.playlist:
             raise PlaylistEmpty
+        self.playlist.pop(0)  # remove current song.
 
         await self.download_video(self.playlist[0])
         self.player = Player(self.video_path, self.playlist[0].duration)
@@ -711,10 +714,11 @@ class ServerAudio:
         await update_message.edit(content=f"Playing: \"{item.title}\"")
 
     async def song_end(self):
-        #if self.loop.state == "all":  # FIXME: For some reason this shit doesn't work
-        #    await self.add_playlist_item(self.currently_playing)
-
-        if self.loop.state == "one":
+        if self.loop.state == "all":
+            self.player = None
+            current_song = self.playlist.pop(0)
+            await self.add_playlist_item(current_song)
+        elif self.loop.state == "one":
             self.seek_song(0)
         else:
             self.player = None  # Clear old player away.
@@ -735,7 +739,7 @@ class ServerAudio:
     def cleanup(self):
         """Cleans up anything ongoing before the bot leaves."""
         self.stop_download = True
-        self.vc.stop()
+        self.vc.pause()
         try:
             os.remove(self.video_path)  # FIXME: for some reason this doesn't work. Need to find a way to free up the file
         except Exception as e:
