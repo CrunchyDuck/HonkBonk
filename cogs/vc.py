@@ -152,6 +152,18 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.command(aliases=[f"{prefix}.seek"])
     async def seek_to_position(self, ctx):
+        await self.seek(ctx)
+
+    @commands.command(aliases=[f"{prefix}.ff", f"{prefix}.fastforward", f"{prefix}.forward"])
+    async def fast_forward(self, ctx):
+        await self.seek(ctx, forward=True)
+
+    @commands.command(aliases=[f"{prefix}.rewind", f"{prefix}.back"])
+    async def rewind(self, ctx):
+        await self.seek(ctx, back=True)
+
+    async def seek(self, ctx, *, forward=False, back=False):
+        """Handles seeking functions commands"""
         if not await self.bot.has_perm(ctx, dm=False): return
         vc = await self.get_connected_vc(ctx)
         if not vc:
@@ -161,15 +173,25 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         seek_time = re.match(r"^([^ ]+)", helpers.remove_invoke(ctx.message.content))
         if not seek_time:
             return
-        await vc.seek_song(seek_time.group(1))
 
-    async def fast_forward(self, ctx):
-        # TODO: Add fast forward
-        pass
-
-    async def rewind(self, ctx):
-        # TODO: Add rewind
-        pass
+        try:
+            seek_time = helpers.SMPTE_to_seconds(seek_time.group(1))
+            if forward:
+                seek_pos = vc.seek_forward(seek_time)
+                await ctx.send(f"nyeormed to {helpers.seconds_to_SMPTE(seek_pos)}")
+            elif back:
+                seek_pos = vc.seek_back(seek_time)
+                await ctx.send(f"beep beep now at {helpers.seconds_to_SMPTE(seek_pos)}")
+            else:
+                vc.seek_song(seek_time)
+                await ctx.send("s o o k")
+            return
+        except NoAudioLoaded:
+            await ctx.send("No song to seek!")
+            return
+        except InvalidSeek:
+            await ctx.send("Invalid s-seek x3c")
+            return
 
     @commands.command(aliases=[f"{prefix}.skip", f"{prefix}.s", f"{prefix}.next"])
     async def skip_song(self, ctx):
@@ -240,7 +262,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("im not in a VC YOU IDIOTTT AHAAAAAAA (remind me to add more replies to this)")
             return
 
-        time = vc.current_time()
+        time = vc.current_time_string()
         if not time:
             await ctx.send("Not playing anything!")
         else:
@@ -598,17 +620,36 @@ class ServerAudio:
             self.vc.resume()
             return ":arrow_forward: **Resuming**"
 
-    async def seek_song(self, seek):
-        if not self.player:
-            await self.message_channel("Not playing anything!")
+    def seek_song(self, seek_in_seconds: int):
+        """
 
-        seek_in_seconds = helpers.SMPTE_to_seconds(seek)
-        if not seek_in_seconds:
-            await self.message_channel.send("Seek invalid!")
-            return
+        Arguments:
+            seek_in_seconds - The time to seek to, in seconds.
+        Raises:
+            NoAudioLoaded - There's no audio to seek
+            InvalidSeek - Seek goes out of bounds.
+        """
+        if not self.player:
+            raise NoAudioLoaded
+        if not 0 <= seek_in_seconds <= self.player.length_of_song:
+            raise InvalidSeek
+
         self.vc.pause()
         self.player = Player(self.video_path, self.playlist[0].duration, seek=seek_in_seconds)
-        self.vc.play(self.player, after=lambda e: self.song_ended_event(e))
+        self.vc.play(self.player, after=self.song_ended_event)
+        return seek_in_seconds
+
+    def seek_back(self, seek_offset: int):
+        if not self.player:
+            raise NoAudioLoaded
+        seek_pos = max(self.player.current_time - seek_offset, 0)
+        return self.seek_song(seek_pos)
+
+    def seek_forward(self, seek_offset: int):
+        if not self.player:
+            raise NoAudioLoaded
+        seek_pos = min(self.player.current_time + seek_offset, self.player.length_of_song)
+        return self.seek_song(seek_pos)
 
     def pause(self):
         self.vc.pause()
@@ -624,7 +665,6 @@ class ServerAudio:
         self.vc.play(self.player, after=self.song_ended_event)
 
     async def download_video(self, item: PlaylistItem):
-        # FIXME: If someone requests two songs in quick succession, both will be downloaded, first will be played, other ignored.
         if self.downloading:
             return
         self.downloading = True
@@ -670,7 +710,7 @@ class ServerAudio:
         #    await self.add_playlist_item(self.currently_playing)
 
         if self.loop.state == "one":
-            await self.seek_song(0)
+            self.seek_song(0)
         else:
             self.player = None  # Clear old player away.
             self.playlist.pop(0)
@@ -679,7 +719,7 @@ class ServerAudio:
     def song_ended_event(self, e):
         self.song_ended = True
 
-    def current_time(self):
+    def current_time_string(self):
         # current time
         if not self.player:
             return None
@@ -774,6 +814,10 @@ class ServerAudio:
 class InvalidVideoId(Exception):
     pass
 class PlaylistEmpty(Exception):
+    pass
+class NoAudioLoaded(Exception):
+    pass
+class InvalidSeek(Exception):
     pass
 
 
