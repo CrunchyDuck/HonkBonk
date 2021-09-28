@@ -85,11 +85,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
                     embed = helpers.default_embed()
-                    embed.set_image(url=item.thumbnail_url)
+                    embed.set_thumbnail(url=item.thumbnail_url)
                     embed.title = "Added to queue"
                     embed.description = f"[{item.title}]({item.url})"
-                    embed.add_field("Channel", item.author)
-                    embed.add_field("Duration", helpers.seconds_to_SMPTE(item.duration))
+                    embed.add_field(name="Channel", value=item.author)
+                    embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
                     # TODO: Time until playing?
                     await ctx.send(embed=embed)
                 return
@@ -252,7 +252,14 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("Not in a VC!")
             return
         vc.loop.next_state()
-        await ctx.send(f":repeat: **Looping {vc.loop.state}**")
+        if vc.loop.state == "one":
+            emoji = ":repeat_one:"
+        elif vc.loop.state == "all":
+            emoji = ":repeat:"
+        else:
+            emoji = ":regional_indicator_x:"
+
+        await ctx.send(f"{emoji} **Looping {vc.loop.state}**")
 
     @commands.command(aliases=[f"{prefix}.shuffle", f"{prefix}.jumble", f"{prefix}.mix", f"{prefix}.shake"])
     async def shuffle_list(self, ctx):
@@ -303,7 +310,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.np", f"{prefix}.nowplaying", f"{prefix}.whatitdo"])
     async def currently_playing(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
-        # TODO: Improve "now playing" appearance
+        # TODO: Improve "now playing" appearance. See SeverAudio.download_video
         vc = await self.get_connected_vc(ctx)
         if not vc:
             await ctx.send("im not in a VC YOU IDIOTTT AHAAAAAAA (remind me to add more replies to this)")
@@ -322,6 +329,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         pass
 
     # === Help functions ===
+    # TODO: Document undocumented functions.
     @commands.command("vc.help")
     async def vc_module_help(self, ctx):
         """The core help command."""
@@ -554,7 +562,7 @@ class PlaylistItem:
         data["title"] = r["snippet"]["title"]
         data["author"] = r["snippet"]["channelTitle"]
         data["description"] = r["snippet"]["description"]
-        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]
+        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]["url"]
 
         dur_text = r["contentDetails"]["duration"]  # Yt provides a weird format.
         match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
@@ -624,6 +632,7 @@ class ServerAudio:
         self.download_progress = -1
         self.downloading = False
         self.stop_download = False
+        self.stopping = False
         self.video_path = f"./attachments/{self.vc.guild.id}.mp4"
         self.async_loop = async_loop  # Used to run song_end. TODO: Make it so I don't have to do this.
         self.yt_api_key = yt_api_key
@@ -732,7 +741,7 @@ class ServerAudio:
         self.playlist = [current_song]
 
     async def download_video(self, item: PlaylistItem):
-        if self.downloading:
+        if self.downloading or self.stopping:
             return
         self.downloading = True
         try:
@@ -751,9 +760,9 @@ class ServerAudio:
         start_time = time()
         self.stop_download = False  # Removes any previous requests to stop the download.
         embed = helpers.default_embed()  # Downloading embed.
-        embed.set_image(item.thumbnail_url)
+        embed.set_thumbnail(url=item.thumbnail_url)
         embed = self.update_downloading_embed(embed, item, 0)
-        update_message = await self.message_channel.send(f"")
+        update_message = await self.message_channel.send(embed=embed)
         with open(path, "wb") as f:
             stream = pytube.request.stream(stream.url)
             while amount_downloaded < size:
@@ -777,7 +786,7 @@ class ServerAudio:
 
         # Create the "Now playing" embed
         embed.title = "**Now Playing**"
-        embed.description = f"({item.title})[{item.url}]\n\n`Length:` {item.duration}"
+        embed.description = f"[{item.title}]({item.url})\n\n`Length:` {helpers.seconds_to_SMPTE(item.duration)}"
         await update_message.edit(embed=embed)
 
     @staticmethod
@@ -788,10 +797,11 @@ class ServerAudio:
             item - The PlaylistItem being downloaded.
             percent - Provided as a decimal from 0 to 1
         """
-        desc = f":inbox_tray: Downloading: ({item.title}[{item.url}]...\n"
-        tenths_done = int(percent * 100) // 10
-        progress_bar = "█" * tenths_done
-        progress_bar += "░" * (10 - tenths_done)
+        desc = f":inbox_tray: Downloading: [{item.title}]({item.url})\n"
+        percent = percent * 100
+        tenths_done = int(percent) // 10
+        progress_bar = "⣿" * tenths_done
+        progress_bar += "⣀" * (10 - tenths_done)
         embed.description = f"{desc}\n`{progress_bar} {percent:.1f}%`"
         return embed
 
@@ -821,6 +831,7 @@ class ServerAudio:
     def cleanup(self):
         """Cleans up anything ongoing before the bot leaves."""
         self.stop_download = True
+        self.stopping = True
         self.vc.pause()
         try:
             os.remove(self.video_path)  # FIXME: for some reason this doesn't work. Need to find a way to free up the file
@@ -885,7 +896,7 @@ class ServerAudio:
                 duration = helpers.seconds_to_SMPTE(song.duration)
                 description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}`\n"
             footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total} | Looping {page_data.loop_state}"
-            description += f"**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**\n**Looping: {page_data.loop_state}**"
+            description += f"\n**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**\n**Looping: {page_data.loop_state}**"
         else:
             description += f"\nNothing! :)\n\n**Looping: {page_data.loop_state}**"
             footer_text = f"Page 0/0"
