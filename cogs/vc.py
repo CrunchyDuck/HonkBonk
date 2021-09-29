@@ -78,19 +78,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             try:
                 video_id = extract.video_id(url_match.group(1))
                 try:
-                    item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_id, self.session)
+                    item = await PlaylistItem.create_from_video_id(ctx.author.display_name, self.yt_api_key, video_id, self.session)
                 except VideoTooLong:
                     await ctx.send("Video too long! 3 hour limit.")
                     return
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
-                    embed = helpers.default_embed()
-                    embed.set_thumbnail(url=item.thumbnail_url)
-                    embed.title = "Added to queue"
-                    embed.description = f"[{item.title}]({item.url})"
-                    embed.add_field(name="Channel", value=item.author)
-                    embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
-                    # TODO: Time until playing?
+                    embed = embed_added_song(item)
                     await ctx.send(embed=embed)
                 return
             except InvalidVideoId:
@@ -103,7 +97,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             try:
                 playlist_id = extract.playlist_id(url_match.group(1))
                 playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
-                playlist_items = await PlaylistItem.create_from_playlist_id(self.yt_api_key, playlist_id, self.session)
+                playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 await vc.add_playlist_list(playlist_items)
                 await ctx.send("Added playlist!")  # TODO: Improve return of "added playlist"
@@ -111,6 +105,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             except InvalidVideoId:
                 await ctx.send("Cannot find a video with the provided URL.")
                 return
+            except KeyError:
+                pass
             except pt_exceptions.RegexMatchError:
                 pass
 
@@ -141,11 +137,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             video_data = r[result_num]
             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
             try:
-                item = await PlaylistItem.create_from_video_id(self.yt_api_key, video_data["id"]["videoId"], self.session)
+                item = await PlaylistItem.create_from_video_id(ctx.author.display_name, self.yt_api_key, video_data["id"]["videoId"], self.session)
             except VideoTooLong:
-                await ctx.send("v-v-video too long D:")
+                await ctx.send("v-v-video too long >//>")
                 return
-            await vc.add_playlist_item(item)
+            if await vc.add_playlist_item(item):
+                embed = embed_added_song(item)
+                await ctx.send(embed=embed)
             return
 
         # Resume a paused song.
@@ -310,17 +308,16 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.np", f"{prefix}.nowplaying", f"{prefix}.whatitdo"])
     async def currently_playing(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
-        # TODO: Improve "now playing" appearance. See SeverAudio.download_video
         vc = await self.get_connected_vc(ctx)
         if not vc:
             await ctx.send("im not in a VC YOU IDIOTTT AHAAAAAAA (remind me to add more replies to this)")
             return
 
-        time = vc.current_time_string()
-        if not time:
-            await ctx.send("Not playing anything!")
-        else:
-            await ctx.send(time)
+        try:
+            embed = vc.now_playing()
+            await ctx.send(embed=embed)
+        except PlaylistEmpty:
+            await ctx.send("Nothing playing!")
 
     @commands.command(aliases=[f"{prefix}.playlist"])
     async def user_playlist(self, ctx):
@@ -535,13 +532,21 @@ class PlaylistItem:
     author: str
     description: str = field(repr=False)
     duration: int = field(repr=False)
+    requested_by: str
     thumbnail_url: str = field(default="", repr=False)
-    # TODO: Add who added song
 
     @staticmethod
-    async def create_from_video_id(youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
-        """Returns the data required to fill a PlaylistItem."""
-        data = {}
+    async def create_from_video_id(requested_by: str, youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
+        """Creates a PlaylistItem based off of a given YouTube video.
+
+        Arguments:
+            requested_by - The name of the user who requested this.
+            youtube_api_key - Key to access the YouTube Data API
+            video_id - The ID of the video - This is NOT a full URL, only the ID.
+            session - Async session to run on.
+        Returns: Filled PlaylistItem
+        """
+        data = {"requested_by": requested_by}
 
         api_endpoint = "https://www.googleapis.com/youtube/v3/videos"
         params = {"part": "snippet,contentDetails", "key": youtube_api_key, "id": video_id}
@@ -562,7 +567,7 @@ class PlaylistItem:
         data["title"] = r["snippet"]["title"]
         data["author"] = r["snippet"]["channelTitle"]
         data["description"] = r["snippet"]["description"]
-        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]["url"]
+        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]["url"]  # TODO: get higher quality thumbnail
 
         dur_text = r["contentDetails"]["duration"]  # Yt provides a weird format.
         match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
@@ -587,7 +592,16 @@ class PlaylistItem:
         return PlaylistItem(**data)
 
     @staticmethod
-    async def create_from_playlist_id(youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession) -> list['PlaylistItem']:
+    async def create_from_playlist_id(requested_by: str, youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession) -> list['PlaylistItem']:
+        """Creates a list of PlaylistItem based off of a given YouTube playlist.
+
+        Arguments:
+            requested_by - The name of the user who requested this.
+            youtube_api_key - Key to access the YouTube Data API
+            playlist_id - The ID of the playlist - This is NOT a full URL, only the ID.
+            session - Async session to run on.
+        Returns: List of filled PlaylistItem
+        """
         # TODO: Implement playlist compilation
         #session = aiohttp.ClientSession()
         api_endpoint = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -608,7 +622,7 @@ class PlaylistItem:
                 # A playlistItems request doesn't give us the "duration" of videos, so we need to perform another request.
                 vid_id = video_data["contentDetails"]["videoId"]
                 try:
-                    item = await PlaylistItem.create_from_video_id(youtube_api_key, vid_id, session)
+                    item = await PlaylistItem.create_from_video_id(requested_by, youtube_api_key, vid_id, session)
                 except VideoTooLong:
                     continue
                 item_list.append(item)
@@ -634,7 +648,7 @@ class ServerAudio:
         self.stop_download = False
         self.stopping = False
         self.video_path = f"./attachments/{self.vc.guild.id}.mp4"
-        self.async_loop = async_loop  # Used to run song_end. TODO: Make it so I don't have to do this.
+        self.async_loop = async_loop  # Used to run song_end.
         self.yt_api_key = yt_api_key
         self.song_ended = False
 
@@ -672,9 +686,8 @@ class ServerAudio:
             # Prepare the first item on the playlist.
             if not self.playlist:
                 # Playlist empty
-                return
+                return "Nothing to play!"
             await self.download_video(self.playlist[0])
-            self.player = Player(self.video_path, self.playlist[0].duration)
             self.vc.play(self.player, after=self.song_ended_event)
             return f"Playing: {self.playlist[0].title}"
         # Song was paused.
@@ -760,8 +773,7 @@ class ServerAudio:
         start_time = time()
         self.stop_download = False  # Removes any previous requests to stop the download.
         embed = helpers.default_embed()  # Downloading embed.
-        embed.set_thumbnail(url=item.thumbnail_url)
-        embed = self.update_downloading_embed(embed, item, 0)
+        embed = embed_downloading(embed, item, 0)
         update_message = await self.message_channel.send(embed=embed)
         with open(path, "wb") as f:
             stream = pytube.request.stream(stream.url)
@@ -778,32 +790,16 @@ class ServerAudio:
                 if now_time - start_time >= 1:
                     self.download_progress = amount_downloaded / size
                     start_time = now_time
-                    embed = self.update_downloading_embed(embed, item, self.download_progress)
+                    embed = embed_downloading(embed, item, self.download_progress)
                     await update_message.edit(embed=embed)
                     await asyncio.sleep(0.2)  # Let the program send out a heartbeat.
         self.download_progress = -1
         self.downloading = False
 
         # Create the "Now playing" embed
-        embed.title = "**Now Playing**"
-        embed.description = f"[{item.title}]({item.url})\n\n`Length:` {helpers.seconds_to_SMPTE(item.duration)}"
+        self.player = Player(self.video_path, self.playlist[0].duration)
+        embed = self.now_playing()
         await update_message.edit(embed=embed)
-
-    @staticmethod
-    def update_downloading_embed(embed, item: PlaylistItem, percent: float):
-        """
-        Arguments:
-            embed - The embed to modify
-            item - The PlaylistItem being downloaded.
-            percent - Provided as a decimal from 0 to 1
-        """
-        desc = f":inbox_tray: Downloading: [{item.title}]({item.url})\n"
-        percent = percent * 100
-        tenths_done = int(percent) // 10
-        progress_bar = "⣿" * tenths_done
-        progress_bar += "⣀" * (10 - tenths_done)
-        embed.description = f"{desc}\n`{progress_bar} {percent:.1f}%`"
-        return embed
 
     async def song_end(self):
         if self.loop.state == "all":
@@ -878,6 +874,19 @@ class ServerAudio:
         else:
             return None
 
+    def now_playing(self):
+        """Returns an embed for "now playing" """
+        if not self.playlist:
+            raise PlaylistEmpty
+        embed = helpers.default_embed()
+        if len(self.playlist) > 1:
+            next_song = self.playlist[1]
+        else:
+            next_song = None
+        this_song = self.playlist[0]
+        embed = embed_now_playing(embed, this_song, next_song, self.player.current_time)
+        return embed
+
     @staticmethod
     def display_playlist(page_data):
         embed = helpers.default_embed()
@@ -894,11 +903,11 @@ class ServerAudio:
                 if position == 0:
                     continue
                 duration = helpers.seconds_to_SMPTE(song.duration)
-                description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}`\n"
-            footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total} | Looping {page_data.loop_state}"
+                description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}` | `Requested by: {song.requested_by}`\n"
+            footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total}"
             description += f"\n**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**\n**Looping: {page_data.loop_state}**"
         else:
-            description += f"\nNothing! :)\n\n**Looping: {page_data.loop_state}**"
+            description += f"\nNothing! :)"
             footer_text = f"Page 0/0"
 
         embed.description = description
@@ -916,6 +925,74 @@ class ServerAudio:
         song_total: int
         page_total: int
         total_time: int = 0
+
+
+def ascii_progress_bar(percent: float) -> str:
+    """Creates an ascii-art progress bar.
+    Arguments:
+        percent - Value from 0 to 1
+    """
+    percent = percent * 100
+    tenths_done = int(percent) // 10
+    progress_bar = "█" * tenths_done
+    progress_bar += "▁" * (10 - tenths_done)
+    return progress_bar
+
+
+def ascii_seek_position(percent: float, segments: int = 30) -> str:
+    unfilled_spot = "▬"
+    filled_spot = "🔘"
+    blank_seek_line = unfilled_spot*segments
+
+    percent = percent * 100
+    segment_percent = 100/(segments-1)
+    seek_position = round(percent / segment_percent)
+    line_with_seek = blank_seek_line[:seek_position] + filled_spot + blank_seek_line[seek_position+1:]
+    return line_with_seek
+
+
+def embed_downloading(embed, item: PlaylistItem, percent: float):
+    """
+    Modifies an embed's description and thumbnail to display the progress through downloading a video.
+    Arguments:
+        embed - An embed to modify the description of.
+        item - The PlaylistItem being downloaded.
+        percent - Provided as a decimal from 0 to 1
+    """
+    progress_bar = ascii_progress_bar(percent)
+    percent = percent * 100
+    desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
+    embed.description = f"{desc}\n\n`{progress_bar} {percent:.1f}%`"
+    embed.set_thumbnail(url=item.thumbnail_url)
+    return embed
+
+
+def embed_now_playing(embed, item: PlaylistItem, next_item: PlaylistItem = None, song_position=0):
+    """Modifies an embed's title, thumbnail and description to display data about the currently playing song."""
+    embed.title = "**Now Playing**"
+    embed.description = f"[{item.title}]({item.url})\n\n"
+
+    embed.description += f"`{ascii_seek_position(song_position / item.duration )}`\n\n"
+
+    embed.description += f"`{helpers.seconds_to_SMPTE(song_position)} / {helpers.seconds_to_SMPTE(item.duration)}`\n\n"
+
+    embed.description += f"`Requested by:` {item.requested_by}\n\n"
+
+    next_song = f"[{next_item.title}]({next_item.url})" if next_item else "Nothing"
+    embed.description += f"`Up next:` {next_song}\n"
+    embed.set_thumbnail(url=item.thumbnail_url)
+    return embed
+
+
+def embed_added_song(item: PlaylistItem):
+    embed = helpers.default_embed()
+    embed.set_thumbnail(url=item.thumbnail_url)
+    embed.title = "Added to queue"
+    embed.description = f"[{item.title}]({item.url})"
+    embed.add_field(name="Channel", value=item.author)
+    embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
+    return embed
+    # TODO: Time until playing?
 
 
 # Exceptions
