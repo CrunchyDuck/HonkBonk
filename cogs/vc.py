@@ -125,9 +125,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             else:
                 result_num = 0
 
-            q = content.replace("|", "%7C")  # Allows for OR searching
-            params = {"part": "snippet", "key": self.yt_api_key, "q": q, "type": "video", "maxResults": 50}
-            r = requests.get("https://www.googleapis.com/youtube/v3/search", params=params).json()["items"]
+            r = await self.youtube_search(content)
+            r = r["items"]
             number_of_results = len(r)
             if not number_of_results:
                 await ctx.send(f"No results for {content}")
@@ -157,7 +156,40 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.search"])
     async def yt_query_list(self, ctx):
         """Displays a list things that could be played and allows the user to choose."""
-        # TODO: Add "search youtube" command
+        # Get query from message.
+        content = helpers.remove_invoke(ctx.message.content)
+        r = await self.youtube_search(content)
+        total_results = r["pageInfo"]["totalResults"]
+        r = r["items"]
+
+        if not total_results:
+            await ctx.send(f"No results for {content}")
+            return
+        page_total = ceil(len(r) / 5)
+
+        # Create YouTubeVideo objects
+        videos = []
+        for item in r:
+            videos.append(VoiceChannels.YouTubeVideo.from_search_resource(item))
+
+        # Create YouTubeSearchPages
+        yt_pages = []
+        for page_num in range(page_total):
+            from_i = page_num * 5
+            to_i = (page_num + 1) * 5
+            videos_in_page = videos[from_i:to_i]
+            page = self.YouTubeSearchPage(videos_in_page, page_num, total_results, content, page_total)
+            yt_pages.append(page)
+
+        # Create reactive message
+        first_page = self.YouTubeSearchPage.display_page(yt_pages[0])
+        msg = await ctx.send(embed=first_page)
+        page_back = "◀️"
+        page_forward = "▶️"
+        await msg.add_reaction(page_back)
+        await msg.add_reaction(page_forward)
+        self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
+                                                                page_back, page_forward, wrap=True, seconds_active=60, users=[ctx.author.id])
 
     @commands.command(aliases=[f"{prefix}.playskip", f"{prefix}.ps"])
     async def play_skip(self, ctx):
@@ -303,7 +335,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         page_forward = "▶️"
         await msg.add_reaction(page_back)
         await msg.add_reaction(page_forward)
-        self.bot.ReactiveMessageManager.create_reactive_message(msg, vc.display_playlist, pages, page_back, page_forward, wrap=True, users=[ctx.message.author.id])
+        self.bot.ReactiveMessageManager.create_reactive_message(msg, vc.display_playlist, pages, page_back, page_forward,
+                                                                wrap=True, users=[ctx.message.author.id])
 
     @commands.command(aliases=[f"{prefix}.np", f"{prefix}.nowplaying", f"{prefix}.whatitdo"])
     async def currently_playing(self, ctx):
@@ -504,6 +537,68 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         return vc
 
+    async def youtube_search(self, query: str) -> dict:
+        """Searches the YouTube API with a query.
+
+        Arguments:
+            query - What to search
+        Returns: The results of the request.
+        """
+        api_endpoint = "https://www.googleapis.com/youtube/v3/search"
+        q = query.replace("|", "%7C")  # Allows for OR searching
+        params = {"part": "snippet", "key": self.yt_api_key, "q": q, "type": "video", "maxResults": 50}
+        url = helpers.url_with_params(api_endpoint, params)
+
+        r = await self.session.request(method="GET", url=url)
+        r = await r.json()
+        return r
+
+    @dataclass
+    class YouTubeVideo:
+        id: str = None
+        title: str = None
+        channel_title: str = None
+        duration: int = None
+        thumbnail_url: str = None
+        release_date: str = None
+
+        @staticmethod
+        def from_search_resource(search_resource: dict) -> 'VoiceChannels.YouTubeVideo':
+            """Generates a YouTubeVideo object from a snippet, provided by the YouTube Data API.
+            See: https://developers.google.com/youtube/v3/docs/search#resource
+            """
+
+            data = {}
+            data["id"] = search_resource["id"]["videoId"]
+            data["channel_title"] = search_resource["snippet"]["channelTitle"]
+            data["title"] = search_resource["snippet"]["title"]
+            data["thumbnail_url"] = search_resource["snippet"]["thumbnails"]["high"]
+            data["release_date"] = search_resource["snippet"]["publishedAt"][:10]
+            return VoiceChannels.YouTubeVideo(**data)
+
+    @dataclass
+    class YouTubeSearchPage:
+        videos: list['VoiceChannels.YouTubeVideo']
+        page_num: int
+
+        search_total: int
+        search_term: str
+        page_total: int
+
+        @staticmethod
+        def display_page(page):
+            embed = helpers.default_embed()
+            embed.title = f"Results for **{page.search_term}**"
+            embed.description = ""
+            for result_num in range(len(page.videos)):
+                result = page.videos[result_num]
+                position = result_num + 1 + (page.page_num * 5)
+                video_url = f"https://youtu.be/{result.id}"
+                embed.description += f"`{position}.` [{result.title}]({video_url}) by {result.channel_title}\n\n"
+            footer_text = f"Page {page.page_num + 1}/{page.page_total} | {page.search_total} results"
+            embed.set_footer(text=footer_text)
+            return embed
+
 
 class Player(discord.FFmpegPCMAudio):
     def __init__(self, source, duration, *, seek=0):
@@ -567,7 +662,7 @@ class PlaylistItem:
         data["title"] = r["snippet"]["title"]
         data["author"] = r["snippet"]["channelTitle"]
         data["description"] = r["snippet"]["description"]
-        data["thumbnail_url"] = r["snippet"]["thumbnails"]["default"]["url"]  # TODO: get higher quality thumbnail
+        data["thumbnail_url"] = r["snippet"]["thumbnails"]["high"]["url"]
 
         dur_text = r["contentDetails"]["duration"]  # Yt provides a weird format.
         match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
@@ -876,7 +971,7 @@ class ServerAudio:
 
     def now_playing(self):
         """Returns an embed for "now playing" """
-        if not self.playlist:
+        if not self.player:
             raise PlaylistEmpty
         embed = helpers.default_embed()
         if len(self.playlist) > 1:
@@ -994,6 +1089,7 @@ def embed_added_song(item: PlaylistItem):
     return embed
     # TODO: Time until playing?
 
+# FIXME: Update on voice state change
 
 # Exceptions
 class InvalidVideoId(Exception):
