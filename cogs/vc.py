@@ -54,6 +54,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         #self.search_settings = {0: {}}  # List of settings for searching within a server. 0=default
 
+    # TODO: Screenshot from video function
+    # TODO: Add admin override
     @commands.command(aliases=[f"{prefix}.join", f"{prefix}.getin"])
     async def join_vc_command(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
@@ -77,11 +79,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             # Try to match a YouTube video.
             try:
                 video_id = extract.video_id(url_match.group(1))
-                try:
-                    item = await PlaylistItem.create_from_video_id(ctx.author.display_name, self.yt_api_key, video_id, self.session)
-                except VideoTooLong:
-                    await ctx.send("Video too long! 3 hour limit.")
+                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id], self.session)
+                if not item:
+                    await ctx.send("Video too long!")
                     return
+                item = item[0]
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
                     embed = embed_added_song(item)
@@ -100,7 +102,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 await vc.add_playlist_list(playlist_items)
-                await ctx.send("Added playlist!")  # TODO: Improve return of "added playlist"
+                await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
                 return
             except InvalidVideoId:
                 await ctx.send("Cannot find a video with the provided URL.")
@@ -125,7 +127,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             else:
                 result_num = 0
 
-            r = await self.youtube_search(content)
+            r = await youtube_search(self.yt_api_key, content, self.session)
             r = r["items"]
             number_of_results = len(r)
             if not number_of_results:
@@ -136,7 +138,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             video_data = r[result_num]
             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
             try:
-                item = await PlaylistItem.create_from_video_id(ctx.author.display_name, self.yt_api_key, video_data["id"]["videoId"], self.session)
+                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_data["id"]["videoId"]], self.session)
+                item = item[0]
             except VideoTooLong:
                 await ctx.send("v-v-video too long >//>")
                 return
@@ -148,6 +151,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Resume a paused song.
         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
         if vc:
+            # TODO: Toggle if already playing.
             reply = await vc.play()
             await ctx.send(reply)
         else:
@@ -158,26 +162,23 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         """Displays a list things that could be played and allows the user to choose."""
         # Get query from message.
         content = helpers.remove_invoke(ctx.message.content)
-        r = await self.youtube_search(content)
+        r = await youtube_search(self.yt_api_key, content, self.session)
         total_results = r["pageInfo"]["totalResults"]
-        r = r["items"]
-
         if not total_results:
             await ctx.send(f"No results for {content}")
             return
-        page_total = ceil(len(r) / 5)
 
-        # Create YouTubeVideo objects
-        videos = []
-        for item in r:
-            videos.append(VoiceChannels.YouTubeVideo.from_search_resource(item))
+        ids = [x["id"]["videoId"] for x in r["items"]]  # comma separated IDs.
+        results = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, ids, self.session, duration=0)
+
+        page_total = ceil(len(results) / 5)
 
         # Create YouTubeSearchPages
         yt_pages = []
         for page_num in range(page_total):
             from_i = page_num * 5
             to_i = (page_num + 1) * 5
-            videos_in_page = videos[from_i:to_i]
+            videos_in_page = results[from_i:to_i]
             page = self.YouTubeSearchPage(videos_in_page, page_num, total_results, content, page_total)
             yt_pages.append(page)
 
@@ -268,10 +269,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         try:
-            await vc.skip_song()
+            vc.skip_song()
+            await ctx.send(":fast_forward: Skipped!")
+            await vc.play()
         except PlaylistEmpty:
             return
-        await ctx.send(":fast_forward: Skipped!")
 
     @commands.command(aliases=[f"{prefix}.repeat", f"{prefix}.r", f"{prefix}.loop"])
     async def repeat_selection(self, ctx):
@@ -497,6 +499,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
 
+    # TODO: Lyrics fetch.
+
     # Functions
     async def join_voice_channel(self, ctx):
         vc = ctx.author.voice.channel
@@ -537,48 +541,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         return vc
 
-    async def youtube_search(self, query: str) -> dict:
-        """Searches the YouTube API with a query.
-
-        Arguments:
-            query - What to search
-        Returns: The results of the request.
-        """
-        api_endpoint = "https://www.googleapis.com/youtube/v3/search"
-        q = query.replace("|", "%7C")  # Allows for OR searching
-        params = {"part": "snippet", "key": self.yt_api_key, "q": q, "type": "video", "maxResults": 50}
-        url = helpers.url_with_params(api_endpoint, params)
-
-        r = await self.session.request(method="GET", url=url)
-        r = await r.json()
-        return r
-
-    @dataclass
-    class YouTubeVideo:
-        id: str = None
-        title: str = None
-        channel_title: str = None
-        duration: int = None
-        thumbnail_url: str = None
-        release_date: str = None
-
-        @staticmethod
-        def from_search_resource(search_resource: dict) -> 'VoiceChannels.YouTubeVideo':
-            """Generates a YouTubeVideo object from a snippet, provided by the YouTube Data API.
-            See: https://developers.google.com/youtube/v3/docs/search#resource
-            """
-
-            data = {}
-            data["id"] = search_resource["id"]["videoId"]
-            data["channel_title"] = search_resource["snippet"]["channelTitle"]
-            data["title"] = search_resource["snippet"]["title"]
-            data["thumbnail_url"] = search_resource["snippet"]["thumbnails"]["high"]
-            data["release_date"] = search_resource["snippet"]["publishedAt"][:10]
-            return VoiceChannels.YouTubeVideo(**data)
-
     @dataclass
     class YouTubeSearchPage:
-        videos: list['VoiceChannels.YouTubeVideo']
+        videos: list['PlaylistItem']
         page_num: int
 
         search_total: int
@@ -591,10 +556,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             embed.title = f"Results for **{page.search_term}**"
             embed.description = ""
             for result_num in range(len(page.videos)):
-                result = page.videos[result_num]
+                video = page.videos[result_num]
                 position = result_num + 1 + (page.page_num * 5)
-                video_url = f"https://youtu.be/{result.id}"
-                embed.description += f"`{position}.` [{result.title}]({video_url}) by {result.channel_title}\n\n"
+                embed.description += f"`{position}.` [{video.title}]({video.url}) by {video.author} `{helpers.seconds_to_SMPTE(video.duration)}`\n\n"
             footer_text = f"Page {page.page_num + 1}/{page.page_total} | {page.search_total} results"
             embed.set_footer(text=footer_text)
             return embed
@@ -628,10 +592,12 @@ class PlaylistItem:
     description: str = field(repr=False)
     duration: int = field(repr=False)
     requested_by: str
+    release_date: str
     thumbnail_url: str = field(default="", repr=False)
 
     @staticmethod
-    async def create_from_video_id(requested_by: str, youtube_api_key: str, video_id: str, session: aiohttp.ClientSession) -> 'PlaylistItem':
+    async def create_from_video_ids(requested_by: str, youtube_api_key: str, video_ids: [str], session: aiohttp.ClientSession,
+                                    duration=3600) -> list['PlaylistItem']:
         """Creates a PlaylistItem based off of a given YouTube video.
 
         Arguments:
@@ -641,42 +607,37 @@ class PlaylistItem:
             session - Async session to run on.
         Returns: Filled PlaylistItem
         """
+        # TODO: Replace web-safe characters with unicode.
         data = {"requested_by": requested_by}
+        r = await youtube_video_search(youtube_api_key, ",".join(video_ids), session)
 
-        api_endpoint = "https://www.googleapis.com/youtube/v3/videos"
-        params = {"part": "snippet,contentDetails", "key": youtube_api_key, "id": video_id}
-
-        # I use the requests library to build my url as it's more succinct and reliable.
-        url_make = requests.models.PreparedRequest()
-        url_make.prepare_url(api_endpoint, params)
-        url_with_params = url_make.url
-
-        r = await session.request(method="GET", url=url_with_params)
-        r = await r.json()
         r = r["items"]
         if len(r) == 0:
             raise InvalidVideoId
-        r = r[0]
 
-        data["url"] = "https://youtu.be/" + r["id"]
-        data["title"] = r["snippet"]["title"]
-        data["author"] = r["snippet"]["channelTitle"]
-        data["description"] = r["snippet"]["description"]
-        data["thumbnail_url"] = r["snippet"]["thumbnails"]["high"]["url"]
+        ret_list = []
+        for vid in r:
+            data["url"] = "https://youtu.be/" + vid["id"]
+            data["title"] = vid["snippet"]["title"]
+            data["author"] = vid["snippet"]["channelTitle"]
+            data["description"] = vid["snippet"]["description"]
+            data["thumbnail_url"] = vid["snippet"]["thumbnails"]["high"]["url"]
+            data["release_date"] = vid["snippet"]["publishedAt"][:10]
 
-        dur_text = r["contentDetails"]["duration"]  # Yt provides a weird format.
-        match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
-        dur = 0
-        if match.group(1):
-            dur += int(match.group(1)) * 3600
-        if match.group(2):
-            dur += int(match.group(2)) * 60
-        if match.group(3):
-            dur += int(match.group(3))
-        data["duration"] = dur
+            dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
+            match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
+            dur = 0
+            if match.group(1):
+                dur += int(match.group(1)) * 3600
+            if match.group(2):
+                dur += int(match.group(2)) * 60
+            if match.group(3):
+                dur += int(match.group(3))
+            data["duration"] = dur
 
-        if dur >= 10800:  # 3 hour long video limit
-            raise VideoTooLong
+            if duration and dur >= duration:
+                continue
+            ret_list.append(PlaylistItem(**data))
 
         # Potentially useful data.
         #r["statistics"]["viewCount"]
@@ -684,10 +645,11 @@ class PlaylistItem:
         #r["statistics"]["dislikeCount"]
         #r["statistics"]["viewCount"]
         #r["topicDetails"]  # Has wikipedia links related to the videos??
-        return PlaylistItem(**data)
+        return ret_list
 
     @staticmethod
-    async def create_from_playlist_id(requested_by: str, youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession) -> list['PlaylistItem']:
+    async def create_from_playlist_id(requested_by: str, youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession,
+                                      duration=3600) -> list['PlaylistItem']:
         """Creates a list of PlaylistItem based off of a given YouTube playlist.
 
         Arguments:
@@ -709,22 +671,16 @@ class PlaylistItem:
 
         # FIXME: Error handling in the event the API returns bad. See https://developers.google.com/youtube/v3/docs/playlistItems/list#errors
         #total_videos = r["pageInfo"]["totalResults"]
-        item_list = []
+        video_ids = []
         while True:
             r = await session.request(method="GET", url=url_with_params)
             r = await r.json()
             for video_data in r["items"]:
-                # A playlistItems request doesn't give us the "duration" of videos, so we need to perform another request.
-                vid_id = video_data["contentDetails"]["videoId"]
-                try:
-                    item = await PlaylistItem.create_from_video_id(requested_by, youtube_api_key, vid_id, session)
-                except VideoTooLong:
-                    continue
-                item_list.append(item)
-
+                video_ids.append(video_data["contentDetails"]["videoId"])
             if "nextPageToken" not in r:  # last page
                 break
             params["pageToken"] = r["nextPageToken"]
+        item_list = await PlaylistItem.create_from_video_ids(requested_by, youtube_api_key, video_ids, session, duration)
 
         return item_list
 
@@ -831,16 +787,12 @@ class ServerAudio:
     def pause(self):
         self.vc.pause()
 
-    async def skip_song(self):
+    def skip_song(self):
         """Gets the next song ready to be played."""
         self.vc.pause()
         if not self.playlist:
             raise PlaylistEmpty
         self.playlist.pop(0)  # remove current song.
-
-        await self.download_video(self.playlist[0])
-        self.player = Player(self.video_path, self.playlist[0].duration)
-        self.vc.play(self.player, after=self.song_ended_event)
 
     def clear_playlist(self):
         if not self.playlist:
@@ -1020,6 +972,43 @@ class ServerAudio:
         song_total: int
         page_total: int
         total_time: int = 0
+
+
+async def youtube_search(youtube_api_key: str, query: str, session: aiohttp.ClientSession) -> dict:
+    """Searches the YouTube API with a query.
+
+    Arguments:
+        query - What to search
+    Returns: The results of the request.
+    """
+    # TODO: Allow the parsing of multiple pages.
+    api_endpoint = "https://www.googleapis.com/youtube/v3/search"
+    q = query.replace("|", "%7C")  # Allows for OR searching
+    params = {"part": "snippet", "key": youtube_api_key, "q": q, "type": "video", "maxResults": 50}
+    url = helpers.url_with_params(api_endpoint, params)
+
+    r = await session.request(method="GET", url=url)
+    r = await r.json()
+    return r
+
+
+async def youtube_video_search(youtube_api_key: str, video_ids: str, session: aiohttp.ClientSession, get_all=True) -> dict:
+    api_endpoint = "https://www.googleapis.com/youtube/v3/videos"
+    params = {"part": "snippet,contentDetails", "key": youtube_api_key, "id": video_ids, "maxResults": 50}
+    url = helpers.url_with_params(api_endpoint, params)
+
+    r = await session.request(method="GET", url=url)
+    r = await r.json()
+    ret_dict = r
+    if get_all:
+        while "nextPageToken" in r:
+            params["pageToken"] = r["nextPageToken"]
+            url = helpers.url_with_params(api_endpoint, params)
+
+            r = await session.request(method="GET", url=url)
+            r = await r.json()
+            ret_dict["items"] += r["items"]
+    return r
 
 
 def ascii_progress_bar(percent: float) -> str:
