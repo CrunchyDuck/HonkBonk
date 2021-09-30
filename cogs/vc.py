@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from math import ceil
 from random import shuffle
 import aiohttp
+import subprocess
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -37,22 +38,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.help_dict = {
             "Commands": ["vc.join", "vc.leave", "vc.play", "vc.seek", "vc.skip", "vc.pause", "vc.np"]
         }
-
-        #self.init_db(self.bot.cursor)
-        #self.bot.Scheduler.add(self.sleep_timer_up, 60)
-
-        # self.help_text = {
-        #     "General": ["vc.sleep", "vc.guitar"],
-        #     "AAAAAdmins": [f"{self.prefix}.{command}" for command in ["join", "leave"]],
-        # }
-
-        #self.api_key = getenv("YT_API_KEY")
-        # self.yt = build("youtube", "v3", developerKey=self.api_key)
-
-        #self.vcs = {}  # serverid: vc object
-        #self.playlist = defaultdict(list)  # A dictionary of server:list for things to play.
-
-        #self.search_settings = {0: {}}  # List of settings for searching within a server. 0=default
 
     # TODO: Screenshot from video function
     # TODO: Add admin override
@@ -157,9 +142,23 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         else:
             await ctx.send("Not in a VC!")
 
+    @commands.command(aliases=[f"{prefix}.description"])
+    async def return_description(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=False): return
+        vc = await self.get_connected_vc(ctx)
+        if not vc:
+            await ctx.send("Nothing playing~~")
+            return
+        try:
+            await ctx.send(f"```{vc.get_description()[:1990]}```")
+        except PlaylistEmpty:
+            await ctx.send("owo no")
+            return
+
     @commands.command(aliases=[f"{prefix}.search"])
     async def yt_query_list(self, ctx):
         """Displays a list things that could be played and allows the user to choose."""
+        if not await self.bot.has_perm(ctx, dm=False): return
         # Get query from message.
         content = helpers.remove_invoke(ctx.message.content)
         r = await youtube_search(self.yt_api_key, content, self.session)
@@ -191,6 +190,25 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         await msg.add_reaction(page_forward)
         self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
                                                                 page_back, page_forward, wrap=True, seconds_active=60, users=[ctx.author.id])
+
+    @commands.command(aliases=[f"{prefix}.screenshot"])
+    async def take_screenshot_now(self, ctx):
+        if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
+        vc = await self.get_connected_vc(ctx)
+        if not vc:
+            await ctx.send("b-baka n-nothing to scewwen *shot* ;3")
+            return
+
+        try:
+            path = vc.screenshot_current_time()
+        except NoAudioLoaded:
+            await ctx.send("o-owo i-it doesn't look like there's anything to take a picture of~")
+            return
+        await ctx.send(file=discord.File(path))
+        try:
+            os.remove(path)
+        except:
+            pass
 
     @commands.command(aliases=[f"{prefix}.playskip", f"{prefix}.ps"])
     async def play_skip(self, ctx):
@@ -247,7 +265,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Get the appropriate ServerAudio.
         vc = await self.get_connected_vc(ctx)
         if vc is None:
-            ctx.send("not in a vc silly uwu")
+            await ctx.send("not in a vc silly uwu")
             return
 
         try:
@@ -359,6 +377,18 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # User playlists allow users to continue what they were listening to before.
         # TODO: Allow users to save playlists.
         pass
+
+    @commands.command(aliases=["c.vc.test"])
+    async def testy(self, ctx):
+        if not await self.bot.has_perm(ctx, owner_only=True): return
+        vc = await self.get_connected_vc(ctx)
+        if not vc:
+            await ctx.send("im not in a VC YOU IDIOTTT AHAAAAAAA (remind me to add more replies to this)")
+            return
+
+        p = Player(vc.video_path, 366)
+        vc.player = p
+        await vc.play()
 
     # === Help functions ===
     # TODO: Document undocumented functions.
@@ -569,9 +599,10 @@ class Player(discord.FFmpegPCMAudio):
         if seek == duration:
             seek -= 0.5  # ffmpeg gives a warning if we seek to the end of a song.
         self.current_time = seek  # Time in seconds
-        #pipes = subprocess.Popen(rf"""ffprobe -i {source} -show_entries format=duration -v quiet -of csv="p=0" """, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        #self.length_of_song = float(pipes.stdout.read())
         self.length_of_song = duration
+        self.source = source
+        # pipes = subprocess.Popen(rf"""ffprobe -i {source} -show_entries format=duration -v quiet -of csv="p=0" """, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # self.length_of_song = float(pipes.stdout.read())
 
         options = f"-ss {seek}"
         super().__init__(source, options=options)
@@ -626,6 +657,8 @@ class PlaylistItem:
 
             dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
             match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
+            if not match:
+                continue
             dur = 0
             if match.group(1):
                 dur += int(match.group(1)) * 3600
@@ -746,6 +779,11 @@ class ServerAudio:
             self.vc.resume()
             return ":arrow_forward: **Resuming**"
 
+    def get_description(self):
+        if not self.playlist:
+            raise PlaylistEmpty
+        return self.playlist[0].description
+
     def shuffle(self):
         if not self.playlist:
             raise PlaylistEmpty
@@ -792,6 +830,7 @@ class ServerAudio:
         self.vc.pause()
         if not self.playlist:
             raise PlaylistEmpty
+        self.player = None
         self.playlist.pop(0)  # remove current song.
 
     def clear_playlist(self):
@@ -839,7 +878,7 @@ class ServerAudio:
                     start_time = now_time
                     embed = embed_downloading(embed, item, self.download_progress)
                     await update_message.edit(embed=embed)
-                    await asyncio.sleep(0.2)  # Let the program send out a heartbeat.
+                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
         self.download_progress = -1
         self.downloading = False
 
@@ -847,6 +886,16 @@ class ServerAudio:
         self.player = Player(self.video_path, self.playlist[0].duration)
         embed = self.now_playing()
         await update_message.edit(embed=embed)
+
+    def screenshot_current_time(self) -> str:
+        if not self.player:
+            raise NoAudioLoaded
+        output_path = self.video_path[:-3] + "jpg"
+        pipes = subprocess.Popen(rf"""ffmpeg -ss {self.player.current_time} -i {self.video_path} -vframes 1 -q:v 4 {output_path}""",
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        #print(pipes.stderr.read())
+        #print(pipes.stdout.)
+        return output_path
 
     async def song_end(self):
         if self.loop.state == "all":
@@ -1016,10 +1065,13 @@ def ascii_progress_bar(percent: float) -> str:
     Arguments:
         percent - Value from 0 to 1
     """
+    filled = "▰"  # █
+    unfilled = "▱"  # ▁
+
     percent = percent * 100
     tenths_done = int(percent) // 10
-    progress_bar = "█" * tenths_done
-    progress_bar += "▁" * (10 - tenths_done)
+    progress_bar = filled * tenths_done
+    progress_bar += unfilled * (10 - tenths_done)
     return progress_bar
 
 

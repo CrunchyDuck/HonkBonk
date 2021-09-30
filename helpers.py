@@ -3,6 +3,7 @@ from datetime import datetime
 import re
 from math import trunc
 import discord
+import requests
 """A bunch of functions that are useful."""
 
 
@@ -230,6 +231,15 @@ def date_from_snowflake(snowflake, strftime_val="%Y-%m-%d %H:%M:%S UTC"):
 def remove_invoke(message):
     """Removes the invoking call from a message."""
     return re.sub(r"^[^\s]+\s*", "", message, count=1)
+
+
+def url_with_params(url: str, params: dict[str, str]) -> str:
+    """Uses the requests module to create a URL with parameters added."""
+    url_make = requests.models.PreparedRequest()
+    url_make.prepare_url(url, params)
+    ret = url_make.url
+    return ret
+
 
 # ==== Potentially useful, removed for now ====
 #
