@@ -36,7 +36,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         ]
         self.yt_api_key = self.bot.settings["YT_API_KEY"]
         self.help_dict = {
-            "Commands": ["vc.join", "vc.leave", "vc.play", "vc.seek", "vc.skip", "vc.pause", "vc.np"]
+            "Commands": [f"{self.prefix}." + x for x in
+                         ["join", "leave", "play", "description", "search", "screenshot", "seek", "fastforward", "rewind",
+                          "clear", "repeat", "skip", "queue", "nowplaying", "pause"]]
         }
 
     # TODO: Screenshot from video function
@@ -226,6 +228,9 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.command(aliases=[f"{prefix}.rewind", f"{prefix}.back"])
     async def rewind(self, ctx):
+        if ctx.message.content == "c.vc.back back":
+            await ctx.send("bka")
+            return
         await self.seek(ctx, back=True)
 
     async def seek(self, ctx, *, forward=False, back=False):
@@ -269,7 +274,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         try:
-            await vc.clear_playlist()
+            vc.clear_playlist()
         except PlaylistEmpty:
             await ctx.send("a-alwedy empty owo")
             return
@@ -436,6 +441,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         `c.vc.play`
         Adds this video to the end of the current playlist.
         `c.vc.p https://youtu.be/J7sU9uB8XtU`
+        Add a whole heckin playlist
+        `c.vc.p <https://www.youtube.com/playlist?list=PLeSM-rQ-jVpulMI3sas4GE6Xh2XH4pwqD>`
         Search YouTube.
         `c.vc.p duck asks for bread`
         Search YouTube, and take the 5th result. Maximum for res is 50.
@@ -444,11 +451,50 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
 
+    @commands.command(aliases=[f"{prefix}.description.help"])
+    async def return_description_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            Get the description of the current video!
+
+            **Examples:**
+            get their epic affiliate link for 50% audible dot. com
+            `c.vc.description`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.search.help"])
+    async def yt_query_list_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            Return a list of results for a YouTube search.
+
+            **Examples:**
+            y'know.
+            `c.vc.search markiplier fnaf|makiplier happy wheels|pewdiepie roleplay`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.screenshot.help"])
+    async def take_screenshot_now_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            Get a screenshot of the video right now!
+
+            **Examples:**
+            ;)
+            `c.vc.screenshot`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=[f"{prefix}.seek.help"])
     async def seek_to_position_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         description = """
-        Go to a point in the song.
+        Go to a point in the video.
 
         **Examples:**
         Go to 5 minutes 30 seconds
@@ -461,6 +507,74 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
 
+    @commands.command(aliases=[f"{prefix}.ff.help", f"{prefix}.fastforward.help", f"{prefix}.forward.help"])
+    async def fast_forward_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+        Go forward an amount of time.
+
+        **Examples:**
+        skip ad for brilliant.organization
+        `c.vc.forward 2:00`
+        zoom past the part where they talk about their subscribers
+        `c.vc.ff 5:00`
+        """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.rewind.help", f"{prefix}.back.help"])
+    async def rewind_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            go bak
+
+            **Examples:**
+            go bak.
+            `c.vc.rewind 5`
+            gob ak
+            `c.vc.back 5:5`
+            bak
+            `c.vc.back back`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.clear.help"])
+    async def clear_playlist_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            Clear the whole playlist!! (current video not included)
+
+            **Examples:**
+            remove pidge's gay stuff
+            `c.vc.clear`
+            remove my gay stuff
+            `c.vc.clear`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.r.help", f"{prefix}.repeat.help", f"{prefix}.loop.help"])
+    async def repeat_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            loop this, loop all, loop NONE!
+
+            **Examples:**
+            toggle loop 1
+            `c.vc.repeat`
+            toggle loop 2
+            `c.vc.loop`
+            toggle loop 2
+            `c.vc.loop`
+            toggle loop 2
+            `c.vc.loop`
+            toggle loop 2
+            `c.vc.loop`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=[f"{prefix}.skip.help", f"{prefix}.s.help"])
     async def skip_song_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -470,7 +584,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         **Examples:**
         skipping past "all the single furries"
         `c.vc.skip`
-        erasing "carrot cake asmr'
+        erasing "carrot cake asmr"
         `c.vc.s`
         """
         embed = helpers.help_command_embed(self.bot, description)
@@ -479,16 +593,14 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.q.help", f"{prefix}.queue.help"])
     async def show_queue_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
-        # TODO: Document queue
-        return
         description = """
-            Mercilessly ends the current song without mercy.
+            display queue
 
             **Examples:**
-            skipping past "all the single furries"
-            `c.vc.skip`
-            erasing "carrot cake asmr'
-            `c.vc.s`
+            oh man what's next
+            `c.vc.q`
+            who summoned this banger
+            `c.vc.queue`
             """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
@@ -1106,7 +1218,7 @@ def embed_downloading(embed, item: PlaylistItem, percent: float):
 def embed_now_playing(embed, item: PlaylistItem, next_item: PlaylistItem = None, song_position=0):
     """Modifies an embed's title, thumbnail and description to display data about the currently playing song."""
     embed.title = "**Now Playing**"
-    embed.description = f"[{item.title}]({item.url})\n\n"
+    embed.description = f"[{item.title}]({item.url})\n{item.author}\n\n"
 
     embed.description += f"`{ascii_seek_position(song_position / item.duration )}`\n\n"
 
