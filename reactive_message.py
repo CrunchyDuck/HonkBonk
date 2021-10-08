@@ -60,9 +60,12 @@ class ReactiveMessageManager:
     async def remove_reactive_message(self, reacting_message):
         message = reacting_message.message
         del self.reacting_message[message.id]
-        await message.remove_reaction(reacting_message.reaction_previous, self.bot.user)
-        await message.remove_reaction(reacting_message.reaction_next, self.bot.user)
-        await message.remove_reaction(reacting_message.reaction_cancel, self.bot.user)
+        try:
+            await message.remove_reaction(reacting_message.reaction_previous, self.bot.user)
+            await message.remove_reaction(reacting_message.reaction_next, self.bot.user)
+            await message.remove_reaction(reacting_message.reaction_cancel, self.bot.user)
+        except Exception as e:
+            pass
 
     #@commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -106,7 +109,11 @@ class ReactiveMessageManager:
             new_message = reacting_message.next_page()
         else:
             return
-        await reacting_message.message.edit(embed=new_message)
+        try:
+            await reacting_message.message.edit(embed=new_message)
+        except Exception as e:
+            # Something went wrong, get rid of it
+            await self.remove_reactive_message(reacting_message)
 
 
 @dataclass
