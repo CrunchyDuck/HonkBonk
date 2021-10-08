@@ -12,12 +12,16 @@ class ReactiveMessageManager:
         self.reacting_message = {}
         bot.add_listener(self.on_raw_reaction_add)
         bot.add_listener(self.on_raw_reaction_remove)
+        bot.add_listener(self.on_message)
         bot.Scheduler.add(self.message_timer_loop, 5)
+        self.bot = bot
 
-    # TODO: Implement wrap
-    def create_reactive_message(self, message, message_page_function: Callable, message_pages: list,
-                                reaction_previous: str, reaction_next: str,
-                                *, seconds_active: int = 20, wrap: bool = False, users: List[int] = None):
+    # TODO: Rework this to support the concept of books/pages.
+    # TODO: Ability to stop reacting before time is up.
+    async def create_reactive_message(self, message, message_page_function: Callable, message_pages: list,
+                                *, page_back: str = "◀️", page_forward: str = "▶️", cancel: str = "🇽",
+                                on_message_func: Callable = None, users: List[int] = None,
+                                seconds_active: int = 20, wrap: bool = True):
         """
 
         Arguments:
@@ -32,7 +36,10 @@ class ReactiveMessageManager:
             users - A list of user IDs
         """
         current_time = time_now()
-        rm = ReactingMessage(message, message_page_function, message_pages, reaction_previous, reaction_next,
+        await message.add_reaction(page_back)
+        await message.add_reaction(page_forward)
+        await message.add_reaction(cancel)
+        rm = ReactingMessage(message, on_message_func, message_page_function, message_pages, page_back, page_forward, cancel,
                              0, wrap, current_time, seconds_active, users)
         self.reacting_message[message.id] = rm
 
@@ -43,15 +50,19 @@ class ReactiveMessageManager:
             current_time - Unix epoch seconds.
         """
         rm_copy = self.reacting_message.copy()
-        for _, reacting_message in rm_copy.items():
+        for message_id, reacting_message in rm_copy.items():
             time_passed = current_time - reacting_message.started_time
             if not time_passed >= reacting_message.seconds_active:
                 # Not enough time has passed.
                 continue
-            message = reacting_message.message
-            await message.remove_reaction(reacting_message.reaction_previous)
-            await message.remove_reaction(reacting_message.reaction_next)
-            del self.reacting_message[message]
+            await self.remove_reactive_message(reacting_message)
+
+    async def remove_reactive_message(self, reacting_message):
+        message = reacting_message.message
+        del self.reacting_message[message.id]
+        await message.remove_reaction(reacting_message.reaction_previous, self.bot.user)
+        await message.remove_reaction(reacting_message.reaction_next, self.bot.user)
+        await message.remove_reaction(reacting_message.reaction_cancel, self.bot.user)
 
     #@commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -67,6 +78,16 @@ class ReactiveMessageManager:
         user_id = payload.user_id
         await self.message_react(reaction, message_id, user_id)
 
+    async def on_message(self, message):
+        # FIXME: This is inefficient. Use a lookup method for messages.
+        rm_copy = self.reacting_message.copy()
+        for k, reacting_message in rm_copy.items():
+            if not reacting_message.on_message_func:
+                continue
+            if message.author in reacting_message.users:
+                if reacting_message.on_message_func(message, reacting_message):
+                    await self.remove_reactive_message(reacting_message)
+
     async def message_react(self, emoji, message_id, user_id):
         if message_id not in self.reacting_message:
             return
@@ -76,15 +97,14 @@ class ReactiveMessageManager:
             return
         # Is the reaction one we care about?
         reaction_str = emoji
-        if reaction_str not in [reacting_message.reaction_previous, reacting_message.reaction_next]:
+        if reaction_str == reacting_message.reaction_cancel:
+            await self.remove_reactive_message(reacting_message)
             return
-
-        try:
-            if reaction_str == reacting_message.reaction_previous:
-                new_message = reacting_message.previous_page()
-            else:
-                new_message = reacting_message.next_page()
-        except IndexError:  # Reaction would put out of bounds, and wrap is disabled.
+        elif reaction_str == reacting_message.reaction_previous:
+            new_message = reacting_message.previous_page()
+        elif reaction_str == reacting_message.reaction_next:
+            new_message = reacting_message.next_page()
+        else:
             return
         await reacting_message.message.edit(embed=new_message)
 
@@ -92,10 +112,12 @@ class ReactiveMessageManager:
 @dataclass
 class ReactingMessage:
     message: object
+    on_message_func: Callable
     message_page_function: Callable
     message_pages: list
     reaction_previous: str
     reaction_next: str
+    reaction_cancel: str
     page_num: int
     wrap: bool
     started_time: float
