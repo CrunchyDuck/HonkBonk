@@ -82,6 +82,7 @@ class MyBot(commands.Bot):
 
         self.load_extension("cogs.core")
         self.load_extension("cogs.vc")
+        self.load_extension("cogs.message_reactions")
         await super().start(self.settings["BOT_TOKEN"], *args, **kwargs)
         return
 
