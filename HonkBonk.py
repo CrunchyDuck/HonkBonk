@@ -75,6 +75,7 @@ class MyBot(commands.Bot):
         Log into discord and begin running commands.
         """
         self.db = sqlite3.connect("bot.db")  # Prepare DB for access from other modules.
+        self.db.row_factory = sqlite3.Row  # Allow elements to be returned as dictionaries.
         self.cursor = self.db.cursor()
 
         # Find and load cogs.
@@ -82,6 +83,7 @@ class MyBot(commands.Bot):
 
         self.load_extension("cogs.core")
         self.load_extension("cogs.vc")
+        self.load_extension("cogs.name_history")
         self.load_extension("cogs.message_reactions")
         await super().start(self.settings["BOT_TOKEN"], *args, **kwargs)
         return
