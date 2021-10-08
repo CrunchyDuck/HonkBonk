@@ -34,12 +34,15 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             "god that's - oh man you posted cringe, you're not even in a vc.....",
             "silly little plonker",
         ]
-        self.yt_api_key = self.bot.settings["YT_API_KEY"]
+        self.yt_api_key = self.bot.settings["YT_API_KEY"][0]
         self.help_dict = {
             "Commands": [f"{self.prefix}." + x for x in
                          ["join", "leave", "play", "description", "search", "screenshot", "seek", "fastforward", "rewind",
                           "clear", "repeat", "skip", "queue", "nowplaying", "pause"]]
         }
+
+    async def voice_state_changed(self, payload):
+        pass
 
     # TODO: Screenshot from video function
     # TODO: Add admin override
@@ -66,33 +69,30 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             # Try to match a YouTube video.
             try:
                 video_id = extract.video_id(url_match.group(1))
+                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id], self.session)
                 if not item:
                     await ctx.send("Video too long!")
                     return
                 item = item[0]
-                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 if await vc.add_playlist_item(item):
                     embed = embed_added_song(item)
                     await ctx.send(embed=embed)
-                return
-            except InvalidVideoId:
-                await ctx.send("Cannot find a video with the provided URL.")
                 return
             except pt_exceptions.RegexMatchError:
                 pass
 
             # Try to match a YouTube playlist.
             try:
-                playlist_id = extract.playlist_id(url_match.group(1))
+                playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
+                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                 playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
                 playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
-                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+                if not playlist_items:
+                    await ctx.send("Cannot find a playlist with the provided URL D:")
+                    return
                 await vc.add_playlist_list(playlist_items)
                 await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
-                return
-            except InvalidVideoId:
-                await ctx.send("Cannot find a video with the provided URL.")
                 return
             except KeyError:
                 pass
@@ -101,7 +101,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         # Use the message as a YouTube query.
         if content:
-            result_num_match = re.search("res=(\d+)", content)
+            result_num_match = re.search(r"res=(\d+)", content)
             if result_num_match:
                 content = content.replace(result_num_match.group(0), "")
                 result_num = int(result_num_match.group(1))
@@ -127,7 +127,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             try:
                 item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_data["id"]["videoId"]], self.session)
                 item = item[0]
-            except VideoTooLong:
+            except IndexError:
                 await ctx.send("v-v-video too long >//>")
                 return
             if await vc.add_playlist_item(item):
@@ -186,15 +186,22 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Create reactive message
         first_page = self.YouTubeSearchPage.display_page(yt_pages[0])
         msg = await ctx.send(embed=first_page)
-        page_back = "◀️"
-        page_forward = "▶️"
-        await msg.add_reaction(page_back)
-        await msg.add_reaction(page_forward)
-        self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
-                                                                page_back, page_forward, wrap=True, seconds_active=60, users=[ctx.author.id])
+        await self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
+                                                                on_message_func=self.search_reply,
+                                                                wrap=True, seconds_active=60, users=[ctx.author.id])
+
+    async def search_reply(self, message, reactive_message):
+        num = int(message.content) - 1
+        page_num, i = divmod(num, 5)
+        video = reactive_message.message_pages[page_num].videos[i]
+        vc = await self.get_connected_vc(message, join_if_not_in=True)
+        if vc.add_playlist_item(video):
+            await message.channel.send(embed=embed_added_song(video))
+        return True
 
     @commands.command(aliases=[f"{prefix}.screenshot"])
     async def take_screenshot_now(self, ctx):
+        # FIXME: Screenshot function doesn't work. Think it's to do with discord hogging ffmpeg
         if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
         vc = await self.get_connected_vc(ctx)
         if not vc:
@@ -340,6 +347,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not vc:
             return
         vc.pause()
+        await ctx.send("⏸️ pawzed!!")
 
     @commands.command(aliases=[f"{prefix}.queue", f"{prefix}.q"])
     async def show_queue(self, ctx):
@@ -356,11 +364,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         first_page = vc.display_playlist(pages[0])
         msg = await ctx.send(embed=first_page)
-        page_back = "◀️"
-        page_forward = "▶️"
-        await msg.add_reaction(page_back)
-        await msg.add_reaction(page_forward)
-        self.bot.ReactiveMessageManager.create_reactive_message(msg, vc.display_playlist, pages, page_back, page_forward,
+        await self.bot.ReactiveMessageManager.create_reactive_message(msg, vc.display_playlist, pages,
                                                                 wrap=True, users=[ctx.message.author.id])
 
     @commands.command(aliases=[f"{prefix}.np", f"{prefix}.nowplaying", f"{prefix}.whatitdo"])
@@ -658,6 +662,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return None
 
         await ctx.guild.change_voice_state(channel=vc)
+        #vc.on_voice_state_update = self.voice_state_changed
         self.connections[ctx.guild.id] = ServerAudio(voice_client, message_channel, self.bot.loop, self.yt_api_key)
         return self.connections[ctx.guild.id]
 
@@ -740,7 +745,7 @@ class PlaylistItem:
 
     @staticmethod
     async def create_from_video_ids(requested_by: str, youtube_api_key: str, video_ids: [str], session: aiohttp.ClientSession,
-                                    duration=3600) -> list['PlaylistItem']:
+                                    duration=3600*3) -> list['PlaylistItem']:
         """Creates a PlaylistItem based off of a given YouTube video.
 
         Arguments:
@@ -750,46 +755,43 @@ class PlaylistItem:
             session - Async session to run on.
         Returns: Filled PlaylistItem
         """
-        # TODO: Replace web-safe characters with unicode.
-        data = {"requested_by": requested_by}
-        r = await youtube_video_search(youtube_api_key, ",".join(video_ids), session)
-
-        r = r["items"]
-        if len(r) == 0:
-            raise InvalidVideoId
-
         ret_list = []
-        for vid in r:
-            data["url"] = "https://youtu.be/" + vid["id"]
-            data["title"] = vid["snippet"]["title"]
-            data["author"] = vid["snippet"]["channelTitle"]
-            data["description"] = vid["snippet"]["description"]
-            data["thumbnail_url"] = vid["snippet"]["thumbnails"]["high"]["url"]
-            data["release_date"] = vid["snippet"]["publishedAt"][:10]
+        data = {"requested_by": requested_by}
+        for chunk_of_videos in chunk_list(video_ids, 50):
+            r = await youtube_video_search(youtube_api_key, ",".join(chunk_of_videos), session)
+            r = r["items"]
 
-            dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
-            match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
-            if not match:
-                continue
-            dur = 0
-            if match.group(1):
-                dur += int(match.group(1)) * 3600
-            if match.group(2):
-                dur += int(match.group(2)) * 60
-            if match.group(3):
-                dur += int(match.group(3))
-            data["duration"] = dur
+            for vid in r:
+                data["url"] = "https://youtu.be/" + vid["id"]
+                data["title"] = vid["snippet"]["title"]
+                data["author"] = vid["snippet"]["channelTitle"]
+                data["description"] = vid["snippet"]["description"]
+                data["thumbnail_url"] = vid["snippet"]["thumbnails"]["high"]["url"]
+                data["release_date"] = vid["snippet"]["publishedAt"][:10]
 
-            if duration and dur >= duration:
-                continue
-            ret_list.append(PlaylistItem(**data))
+                dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
+                match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
+                if not match:
+                    continue
+                dur = 0
+                if match.group(1):
+                    dur += int(match.group(1)) * 3600
+                if match.group(2):
+                    dur += int(match.group(2)) * 60
+                if match.group(3):
+                    dur += int(match.group(3))
+                data["duration"] = dur
 
-        # Potentially useful data.
-        #r["statistics"]["viewCount"]
-        #r["statistics"]["likeCount"]
-        #r["statistics"]["dislikeCount"]
-        #r["statistics"]["viewCount"]
-        #r["topicDetails"]  # Has wikipedia links related to the videos??
+                if duration and dur >= duration:
+                    continue
+                ret_list.append(PlaylistItem(**data))
+
+            # Potentially useful data.
+            #r["statistics"]["viewCount"]
+            #r["statistics"]["likeCount"]
+            #r["statistics"]["dislikeCount"]
+            #r["statistics"]["viewCount"]
+            #r["topicDetails"]  # Has wikipedia links related to the videos??
         return ret_list
 
     @staticmethod
@@ -808,23 +810,20 @@ class PlaylistItem:
         #session = aiohttp.ClientSession()
         api_endpoint = "https://www.googleapis.com/youtube/v3/playlistItems"
         params = {"part": "contentDetails", "key": youtube_api_key, "playlistId": playlist_id, "maxResults": 50}
-
-        # I use the requests library to build my url as it's more succinct and reliable.
-        r = requests.models.PreparedRequest()
-        r.prepare_url(api_endpoint, params)
-        url_with_params = r.url
+        url = helpers.url_with_params(api_endpoint, params)
 
         # FIXME: Error handling in the event the API returns bad. See https://developers.google.com/youtube/v3/docs/playlistItems/list#errors
         #total_videos = r["pageInfo"]["totalResults"]
         video_ids = []
         while True:
-            r = await session.request(method="GET", url=url_with_params)
+            r = await session.request(method="GET", url=url)
             r = await r.json()
             for video_data in r["items"]:
                 video_ids.append(video_data["contentDetails"]["videoId"])
             if "nextPageToken" not in r:  # last page
                 break
             params["pageToken"] = r["nextPageToken"]
+            url = helpers.url_with_params(api_endpoint, params)
         item_list = await PlaylistItem.create_from_video_ids(requested_by, youtube_api_key, video_ids, session, duration)
 
         return item_list
@@ -901,7 +900,7 @@ class ServerAudio:
             raise PlaylistEmpty
         current_song = self.playlist.pop(0)
         shuffle(self.playlist)
-        self.playlist.insert(current_song, 0)
+        self.playlist.insert(0, current_song)
 
     def seek_song(self, seek_in_seconds: int):
         """
@@ -943,6 +942,7 @@ class ServerAudio:
         if not self.playlist:
             raise PlaylistEmpty
         self.player = None
+        self.stop_download = True
         self.playlist.pop(0)  # remove current song.
 
     def clear_playlist(self):
@@ -1241,6 +1241,12 @@ def embed_added_song(item: PlaylistItem):
     embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
     return embed
     # TODO: Time until playing?
+
+
+def chunk_list(lst, chunk_size):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), chunk_size):
+        yield lst[i:i + chunk_size]
 
 # FIXME: Update on voice state change
 
