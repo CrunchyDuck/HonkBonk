@@ -8,7 +8,6 @@ import pytube.exceptions as pt_exceptions
 from pytube import extract, request
 import re
 from time import time
-import requests  # The lack of async support in requests might lead me to replacing it.
 import os
 from dataclasses import dataclass, field
 from math import ceil
@@ -41,8 +40,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                           "clear", "repeat", "skip", "queue", "nowplaying", "pause"]]
         }
 
-    async def voice_state_changed(self, payload):
-        pass
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        guild_id = member.guild.id
+        if after.channel is None:
+            if guild_id in self.connections:
+                self.connections[guild_id].cleanup()
+                del self.connections[guild_id]
 
     # TODO: Screenshot from video function
     # TODO: Add admin override
@@ -386,18 +390,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # User playlists allow users to continue what they were listening to before.
         # TODO: Allow users to save playlists.
         pass
-
-    @commands.command(aliases=["c.vc.test"])
-    async def testy(self, ctx):
-        if not await self.bot.has_perm(ctx, owner_only=True): return
-        vc = await self.get_connected_vc(ctx)
-        if not vc:
-            await ctx.send("im not in a VC YOU IDIOTTT AHAAAAAAA (remind me to add more replies to this)")
-            return
-
-        p = Player(vc.video_path, 366)
-        vc.player = p
-        await vc.play()
 
     # === Help functions ===
     # TODO: Document undocumented functions.
@@ -879,10 +871,14 @@ class ServerAudio:
         # Song isn't playing/paused.
         if self.player is None:
             # Prepare the first item on the playlist.
+            if self.stopping:
+                return
             if not self.playlist:
                 # Playlist empty
                 return "Nothing to play!"
             await self.download_video(self.playlist[0])
+            if self.player is None:  # Download failed/stopped
+                return
             self.vc.play(self.player, after=self.song_ended_event)
             return f"Playing: {self.playlist[0].title}"
         # Song was paused.
@@ -993,6 +989,10 @@ class ServerAudio:
                     await asyncio.sleep(1)  # Let the program send out a heartbeat.
         self.download_progress = -1
         self.downloading = False
+        if self.stop_download:
+            embed.description = "Stopped downloady"
+            await update_message.edit(embed=embed_stop_download(embed, item))
+            return
 
         # Create the "Now playing" embed
         self.player = Player(self.video_path, self.playlist[0].duration)
@@ -1211,6 +1211,13 @@ def embed_downloading(embed, item: PlaylistItem, percent: float):
     percent = percent * 100
     desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
     embed.description = f"{desc}\n\n`{progress_bar} {percent:.1f}%`"
+    embed.set_thumbnail(url=item.thumbnail_url)
+    return embed
+
+
+def embed_stop_download(embed, item: PlaylistItem):
+    desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
+    embed.description = f"{desc}\n\nDownload stopped."
     embed.set_thumbnail(url=item.thumbnail_url)
     return embed
 
