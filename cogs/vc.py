@@ -14,6 +14,8 @@ from math import ceil
 from random import shuffle
 import aiohttp
 import subprocess
+import requests
+import json
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -42,6 +44,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        if member != self.bot.user:
+            return
         guild_id = member.guild.id
         if after.channel is None:
             if guild_id in self.connections:
@@ -68,40 +72,51 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         content = helpers.remove_invoke(ctx.message.content)
         # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
         # Try to get a link.
-        url_match = re.match("(^[^ ]+)", content)
+        url_match = re.match("^<?([^ >]+)", content)
         if url_match:
-            # Try to match a YouTube video.
-            try:
-                video_id = extract.video_id(url_match.group(1))
-                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id], self.session)
-                if not item:
-                    await ctx.send("Video too long!")
+            # YouTube URL match
+            if re.match(r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
+                        url_match.group(1)):
+                # Try to match a YouTube video.
+                try:
+                    video_id = extract.video_id(url_match.group(1))
+                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+                    item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id], self.session)
+                    if not item:
+                        await ctx.send("Video too long!")
+                        return
+                    item = item[0]
+                    if await vc.add_playlist_item(item):
+                        embed = embed_added_song(item)
+                        await ctx.send(embed=embed)
                     return
-                item = item[0]
-                if await vc.add_playlist_item(item):
-                    embed = embed_added_song(item)
-                    await ctx.send(embed=embed)
-                return
-            except pt_exceptions.RegexMatchError:
-                pass
+                except pt_exceptions.RegexMatchError:
+                    pass
 
-            # Try to match a YouTube playlist.
-            try:
-                playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
-                vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
-                playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
-                if not playlist_items:
-                    await ctx.send("Cannot find a playlist with the provided URL D:")
+                # Try to match a YouTube playlist.
+                try:
+                    playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
+                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+                    playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
+                    playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
+                    if not playlist_items:
+                        await ctx.send("Cannot find a playlist with the provided URL D:")
+                        return
+                    await vc.add_playlist_list(playlist_items)
+                    await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
                     return
-                await vc.add_playlist_list(playlist_items)
-                await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
-                return
-            except KeyError:
-                pass
-            except pt_exceptions.RegexMatchError:
-                pass
+                except KeyError:
+                    pass
+                except pt_exceptions.RegexMatchError:
+                    pass
+            # Try to match a bandcamp page
+            else:
+                items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
+                if items:
+                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+                    await vc.add_playlist_list(items)
+                    await ctx.send(f"Added {len(items)} videos!!!")
+                    return
 
         # Use the message as a YouTube query.
         if content:
@@ -431,6 +446,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not await self.bot.has_perm(ctx, dm=True): return
         description = """
         Resume a video, or add a new video to the end of the playlist.
+        Youtube videos or bandcamp albums supported.
         
         **Examples:**
         Resumes playing the current video.
@@ -439,6 +455,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         `c.vc.p https://youtu.be/J7sU9uB8XtU`
         Add a whole heckin playlist
         `c.vc.p <https://www.youtube.com/playlist?list=PLeSM-rQ-jVpulMI3sas4GE6Xh2XH4pwqD>`
+        Add a Bandcamp album
+        `c.vc.p <https://music.disasterpeace.com/album/disasters-for-piano>`
         Search YouTube.
         `c.vc.p duck asks for bread`
         Search YouTube, and take the 5th result. Maximum for res is 50.
@@ -641,6 +659,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     # Functions
     async def join_voice_channel(self, ctx):
+        await ctx.guild.change_voice_state(channel=None)
         vc = ctx.author.voice.channel
         message_channel = ctx.message.channel
         if not vc:
@@ -649,12 +668,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         try:
             voice_client = await vc.connect()
-        except (discord.errors.ClientException, asyncio.TimeoutError):
+        except asyncio.TimeoutError:
             await ctx.send("Failed to connect, for some reason.")
             return None
 
         await ctx.guild.change_voice_state(channel=vc)
-        #vc.on_voice_state_update = self.voice_state_changed
         self.connections[ctx.guild.id] = ServerAudio(voice_client, message_channel, self.bot.loop, self.yt_api_key)
         return self.connections[ctx.guild.id]
 
@@ -726,6 +744,8 @@ class Player(discord.FFmpegPCMAudio):
 @dataclass
 class PlaylistItem:
     """Represents a video to be played by ServerAudio"""
+    # TODO: Split this into aggregate items for youtube/bandcamp
+    source: str  # "youtube" or "bandcamp"
     url: str = field(repr=False)
     title: str
     author: str
@@ -748,7 +768,7 @@ class PlaylistItem:
         Returns: Filled PlaylistItem
         """
         ret_list = []
-        data = {"requested_by": requested_by}
+        data = {"source": "youtube", "requested_by": requested_by}
         for chunk_of_videos in chunk_list(video_ids, 50):
             r = await youtube_video_search(youtube_api_key, ",".join(chunk_of_videos), session)
             r = r["items"]
@@ -820,6 +840,39 @@ class PlaylistItem:
 
         return item_list
 
+    @staticmethod
+    async def create_from_bandcamp_url(requested_by: str, url) -> list['PlaylistItem']:
+        r = requests.get(url)
+        if r.status_code != 200:
+            return []
+
+        m = re.search("""<script type="application/ld\+json">(.+?)</script>""", r.text, flags=re.DOTALL)
+        if not m:
+            return []
+
+        data = json.loads(m.group(1))
+
+        items = []
+        p_data = {"source": "bandcamp", "requested_by": requested_by}
+        p_data["author"] = data["publisher"]["name"]
+        p_data["description"] = ""
+        p_data["release_date"] = data["datePublished"]
+        p_data["thumbnail_url"] = data["image"]
+        for track in data["track"]["itemListElement"]:
+            track = track["item"]
+            p_data["title"] = track["name"]
+            p_data["url"] = ""
+            p_data["duration"] = 0
+            for prop in track["additionalProperty"]:
+                if prop["name"] == "duration_secs":
+                    p_data["duration"] = prop["value"]
+                elif prop["name"] == "file_mp3-128":
+                    p_data["url"] = prop["value"]
+            p = PlaylistItem(**p_data)
+            items.append(p)
+
+        return items
+
 
 # Requires FFMPEG
 class ServerAudio:
@@ -876,7 +929,7 @@ class ServerAudio:
             if not self.playlist:
                 # Playlist empty
                 return "Nothing to play!"
-            await self.download_video(self.playlist[0])
+            await self.download(self.playlist[0])
             if self.player is None:  # Download failed/stopped
                 return
             self.vc.play(self.player, after=self.song_ended_event)
@@ -947,7 +1000,13 @@ class ServerAudio:
         current_song = self.playlist.pop(0)
         self.playlist = [current_song]
 
-    async def download_video(self, item: PlaylistItem):
+    async def download(self, item: PlaylistItem) -> None:
+        if item.source == "youtube":
+            await self.download_youtube_item(item)
+        elif item.source == "bandcamp":
+            await self.download_bandcamp_item(item)
+
+    async def download_youtube_item(self, item: PlaylistItem) -> None:
         if self.downloading or self.stopping:
             return
         self.downloading = True
@@ -987,6 +1046,46 @@ class ServerAudio:
                     embed = embed_downloading(embed, item, self.download_progress)
                     await update_message.edit(embed=embed)
                     await asyncio.sleep(1)  # Let the program send out a heartbeat.
+        self.download_progress = -1
+        self.downloading = False
+        if self.stop_download:
+            embed.description = "Stopped downloady"
+            await update_message.edit(embed=embed_stop_download(embed, item))
+            return
+
+        # Create the "Now playing" embed
+        self.player = Player(self.video_path, self.playlist[0].duration)
+        embed = self.now_playing()
+        await update_message.edit(embed=embed)
+
+    async def download_bandcamp_item(self, item: PlaylistItem) -> None:
+        if self.downloading or self.stopping:
+            return
+
+        self.downloading = True
+        r = requests.get(item.url, stream=True)
+        length = int(r.headers["Content-Length"])
+        start_time = time()
+        amount_downloaded = 0
+
+        self.stop_download = False  # Removes any previous requests to stop the download.
+        embed = helpers.default_embed()  # Downloading embed.
+        embed = embed_downloading(embed, item, 0)
+        update_message = await self.message_channel.send(embed=embed)
+        with open(self.video_path, "wb") as f:  # FIXME: This sometimes hitches
+            for chunk in r:
+                if self.stop_download:
+                    break
+                f.write(chunk)
+                amount_downloaded += len(chunk)
+                now_time = time()
+                if now_time - start_time >= 1:
+                    self.download_progress = amount_downloaded / length
+                    start_time = now_time
+                    embed = embed_downloading(embed, item, self.download_progress)
+                    await update_message.edit(embed=embed)
+                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
+
         self.download_progress = -1
         self.downloading = False
         if self.stop_download:
