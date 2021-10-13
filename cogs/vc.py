@@ -16,6 +16,7 @@ import aiohttp
 import subprocess
 import requests
 import json
+import typing
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -67,7 +68,14 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send(choice(replies))
 
     @commands.command(aliases=[f"{prefix}.play", f"{prefix}.p", f"{prefix}.oi"])
-    async def play_song(self, ctx):
+    async def play_song_command(self, ctx):
+        await self.play_song(ctx)
+
+    @commands.command(aliases=[f"{prefix}.playtop", f"{prefix}.pt"])
+    async def play_song_top(self, ctx):
+        await self.play_song(ctx, 0)
+
+    async def play_song(self, ctx, pos=-1):
         if not await self.bot.has_perm(ctx, dm=False): return
         content = helpers.remove_invoke(ctx.message.content)
         # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
@@ -75,18 +83,20 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         url_match = re.match("^<?([^ >]+)", content)
         if url_match:
             # YouTube URL match
-            if re.match(r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
-                        url_match.group(1)):
+            if re.match(
+                    r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
+                    url_match.group(1)):
                 # Try to match a YouTube video.
                 try:
                     video_id = extract.video_id(url_match.group(1))
                     vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                    item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id], self.session)
+                    item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id],
+                                                                    self.session)
                     if not item:
                         await ctx.send("Video too long!")
                         return
                     item = item[0]
-                    if await vc.add_playlist_item(item):
+                    if await vc.add_playlist_item(item, pos):
                         embed = embed_added_song(item)
                         await ctx.send(embed=embed)
                     return
@@ -98,11 +108,12 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                     playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
                     vc = await self.get_connected_vc(ctx, join_if_not_in=True)
                     playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
-                    playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key, playlist_id, self.session)
+                    playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key,
+                                                                                playlist_id, self.session)
                     if not playlist_items:
                         await ctx.send("Cannot find a playlist with the provided URL D:")
                         return
-                    await vc.add_playlist_list(playlist_items)
+                    await vc.add_playlist_list(playlist_items, pos)
                     await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
                     return
                 except KeyError:
@@ -114,7 +125,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
                 if items:
                     vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                    await vc.add_playlist_list(items)
+                    await vc.add_playlist_list(items, pos)
                     await ctx.send(f"Added {len(items)} videos!!!")
                     return
 
@@ -144,12 +155,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             video_data = r[result_num]
             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
             try:
-                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_data["id"]["videoId"]], self.session)
+                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key,
+                                                                [video_data["id"]["videoId"]], self.session)
                 item = item[0]
             except IndexError:
                 await ctx.send("v-v-video too long >//>")
                 return
-            if await vc.add_playlist_item(item):
+            if await vc.add_playlist_item(item, pos):
                 embed = embed_added_song(item)
                 await ctx.send(embed=embed)
             return
@@ -237,12 +249,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             os.remove(path)
         except:
             pass
-
-    @commands.command(aliases=[f"{prefix}.playskip", f"{prefix}.ps"])
-    async def play_skip(self, ctx):
-        # Like play, but put it to the top of the pile and skips the current song.
-        # TODO: Add "play skip" command
-        pass
 
     @commands.command(aliases=[f"{prefix}.seek"])
     async def seek_to_position(self, ctx):
@@ -658,7 +664,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     # TODO: Lyrics fetch.
 
     # Functions
-    async def join_voice_channel(self, ctx):
+    async def join_voice_channel(self, ctx) -> typing.Union['ServerAudio', None]:
         await ctx.guild.change_voice_state(channel=None)
         vc = ctx.author.voice.channel
         message_channel = ctx.message.channel
@@ -676,7 +682,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.connections[ctx.guild.id] = ServerAudio(voice_client, message_channel, self.bot.loop, self.yt_api_key)
         return self.connections[ctx.guild.id]
 
-    async def leave_voice_channel(self, ctx):
+    async def leave_voice_channel(self, ctx) -> bool:
         vc = await self.get_connected_vc(ctx)
         if not vc:
             return False
@@ -686,7 +692,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         del self.connections[ctx.guild.id]
         return True
 
-    async def get_connected_vc(self, ctx, join_if_not_in=False):
+    async def get_connected_vc(self, ctx, join_if_not_in=False) -> typing.Union['ServerAudio', None]:
         """Gets the VC that this"""
         try:
             vc = self.connections[ctx.guild.id]
@@ -902,22 +908,27 @@ class ServerAudio:
                 self.song_ended = False
             await asyncio.sleep(1)
 
-    async def add_playlist_item(self, item: PlaylistItem):
+    async def add_playlist_item(self, item: PlaylistItem, pos=-1):
         """Wrapper for add_song to allow for PlaylistItems"""
         #await self.add_song(item.url, item.title, item.author, item.description, item.duration)
-        self.playlist.append(item)
+        if pos >= 0:
+            self.playlist.insert(pos+1, item)
+        else:
+            self.playlist.append(item)
         if len(self.playlist) == 1:  # Only the song that was just added exists.
             await self.play()
         else:
             return True
             #await self.message_channel.send(f"Added \"{item.title}\" by \"{item.author}\"")
 
-    async def add_playlist_list(self, items: list[PlaylistItem]):
+    async def add_playlist_list(self, items: list[PlaylistItem], pos=-1):
         for item in items:
-            await self.add_playlist_item(item)
+            await self.add_playlist_item(item, pos)
+            if pos >= 0:  # Update position with the new size of the playlist.
+                pos += 1
         return True
 
-    async def play(self):
+    async def play(self) -> str:
         """
         Play paused or queued audio.
         """
@@ -925,13 +936,13 @@ class ServerAudio:
         if self.player is None:
             # Prepare the first item on the playlist.
             if self.stopping:
-                return
+                return "Stopping..."
             if not self.playlist:
                 # Playlist empty
                 return "Nothing to play!"
             await self.download(self.playlist[0])
             if self.player is None:  # Download failed/stopped
-                return
+                return "Download failed."
             self.vc.play(self.player, after=self.song_ended_event)
             return f"Playing: {self.playlist[0].title}"
         # Song was paused.
@@ -1073,7 +1084,8 @@ class ServerAudio:
         embed = embed_downloading(embed, item, 0)
         update_message = await self.message_channel.send(embed=embed)
         with open(self.video_path, "wb") as f:  # FIXME: This sometimes hitches
-            for chunk in r:
+            print("started")
+            for chunk in r.iter_content(chunk_size=1024*1024):  # 1MB chunks
                 if self.stop_download:
                     break
                 f.write(chunk)
@@ -1083,8 +1095,9 @@ class ServerAudio:
                     self.download_progress = amount_downloaded / length
                     start_time = now_time
                     embed = embed_downloading(embed, item, self.download_progress)
-                    await update_message.edit(embed=embed)
-                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
+                    print(amount_downloaded)
+                    #await update_message.edit(embed=embed)
+                    #await asyncio.sleep(1)  # Let the program send out a heartbeat.
 
         self.download_progress = -1
         self.downloading = False
