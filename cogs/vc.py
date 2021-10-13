@@ -1271,21 +1271,6 @@ async def youtube_video_search(youtube_api_key: str, video_ids: str, session: ai
     return r
 
 
-def ascii_progress_bar(percent: float) -> str:
-    """Creates an ascii-art progress bar.
-    Arguments:
-        percent - Value from 0 to 1
-    """
-    filled = "▰"  # █
-    unfilled = "▱"  # ▁
-
-    percent = percent * 100
-    tenths_done = int(percent) // 10
-    progress_bar = filled * tenths_done
-    progress_bar += unfilled * (10 - tenths_done)
-    return progress_bar
-
-
 def ascii_seek_position(percent: float, segments: int = 30) -> str:
     unfilled_spot = "▬"
     filled_spot = "🔘"
@@ -1306,7 +1291,7 @@ def embed_downloading(embed, item: PlaylistItem, percent: float):
         item - The PlaylistItem being downloaded.
         percent - Provided as a decimal from 0 to 1
     """
-    progress_bar = ascii_progress_bar(percent)
+    progress_bar = helpers.ascii_progress_bar(percent)
     percent = percent * 100
     desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
     embed.description = f"{desc}\n\n`{progress_bar} {percent:.1f}%`"

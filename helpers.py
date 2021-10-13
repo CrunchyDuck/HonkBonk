@@ -40,6 +40,7 @@ def remove_python_comments(text: str) -> str:
     """
     return re.sub(r"#.+", "", text)
 
+
 # TODO: All of these time functions would be better served if they returned an object.
 def time_now():
     """Get the current Unix Epoch time, in seconds."""
@@ -239,6 +240,18 @@ def url_with_params(url: str, params: dict[str, str]) -> str:
     url_make.prepare_url(url, params)
     ret = url_make.url
     return ret
+
+
+def ascii_progress_bar(percent: float, filled="▰", unfilled="▱") -> str:
+    """Creates an ascii-art progress bar.
+    Arguments:
+        percent - Value from 0 to 1
+    """
+    percent = percent * 100
+    tenths_done = int(percent) // 10
+    progress_bar = filled * tenths_done
+    progress_bar += unfilled * (10 - tenths_done)
+    return progress_bar
 
 
 # ==== Potentially useful, removed for now ====
