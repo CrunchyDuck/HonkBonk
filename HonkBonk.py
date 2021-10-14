@@ -70,7 +70,7 @@ class MyBot(commands.Bot):
         self.db = None
         self.cursor = None
 
-    async def start(self, *args, **kwargs):
+    async def honkbonk_start(self, *args, **kwargs):
         """
         Log into discord and begin running commands.
         """
@@ -85,33 +85,7 @@ class MyBot(commands.Bot):
         self.load_extension("cogs.vc")
         self.load_extension("cogs.name_history")
         self.load_extension("cogs.message_reactions")
-        await super().start(self.settings["BOT_TOKEN"], *args, **kwargs)
-        return
-
-        # Find and load cogs.
-        cogs = list(Path("./cogs").glob("**/*.py"))
-        db_cogs = self.db_get(self.db, "SELECT rowid, * FROM cogs")
-        for cog in cogs:
-            cog_name = str(cog)[:-len(cog.suffix)]
-            cog_name = cog_name.replace("\\", ".")  # windows.
-            cog_name = cog_name.replace("/", ".")  # everything else
-            self.all_cogs[cog_name] = self.time_now()
-
-            # Check if this cog exists in the database
-            load = None
-            for db_cog in db_cogs:
-                if cog_name == db_cog["cog"]:
-                    load = db_cog["active"]
-
-            # Load cog, or update the database with this new cog.
-            if load is None:
-                # Cog not found in database, add new entry.
-                self.db.execute("INSERT INTO cogs VALUES(?,?)", [cog_name, 1])
-                self.db.commit()
-                self.load_extension(cog_name)
-            elif load:
-                self.load_extension(cog_name)
-        await super().start(*args, **kwargs)
+        await self.start(self.settings["BOT_TOKEN"], *args, **kwargs)
 
     async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
         """
@@ -382,13 +356,6 @@ class MyBot(commands.Bot):
 # FIXME: Clear attachments after emoji push.
 
 def main():
-    with open("settings.json", "r") as f:
-        json_text = helpers.remove_python_comments(f.read())
-        settings = loads(json_text)  # API tokens/bot settings
-    intents = discord.Intents.all()  # All intents makes quick testing easier.
-    bot = MyBot(settings, intents=intents)
-    bot.remove_command("help")  # Default help is ugly.
-
     # Set up logger.
     logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
@@ -397,9 +364,23 @@ def main():
     logger.addHandler(handler)
 
     loop = asyncio.get_event_loop()
-    asyncio.ensure_future(bot.start())
+    # Create HonkBonk.
+    with open("settings.json", "r") as f:
+        json_text = helpers.remove_python_comments(f.read())
+        settings = loads(json_text)  # API tokens/bot settings
+    intents = discord.Intents.all()  # All intents makes quick testing easier.
+    bot = MyBot(settings, intents=intents)
+    bot.remove_command("help")  # Default help is ugly.
+    asyncio.ensure_future(bot.honkbonk_start())
     asyncio.ensure_future(bot.Scheduler.start())
-    # asyncio.ensure_future(Network(bot).start())
+
+    # Create archivist bot.
+    if "ARCHIVE_BOT_TOKEN" in settings:
+        archive_bot = MyBot(settings, intents=intents)
+        archive_bot.command_prefix = settings["ARCHIVE_PREFIX"]
+        archive_bot.remove_command("help")
+        archive_bot.load_extension("cogs.archive_channel")
+        asyncio.ensure_future(archive_bot.start(settings["ARCHIVE_BOT_TOKEN"]))
 
     try:
         loop.run_forever()
