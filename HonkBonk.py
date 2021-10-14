@@ -382,6 +382,13 @@ def main():
         archive_bot.load_extension("cogs.archive_channel")
         asyncio.ensure_future(archive_bot.start(settings["ARCHIVE_BOT_TOKEN"]))
 
+    if "STEAM_BOT_TOKEN" in settings:
+        archive_bot = MyBot(settings, intents=intents)
+        archive_bot.command_prefix = settings["STEAM_BOT_PREFIX"]
+        archive_bot.remove_command("help")
+        archive_bot.load_extension("cogs.steam")
+        asyncio.ensure_future(archive_bot.start(settings["STEAM_BOT_TOKEN"]))
+
     try:
         loop.run_forever()
     except KeyboardInterrupt:
