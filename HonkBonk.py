@@ -39,13 +39,6 @@ class MyBot(commands.Bot):
     owner_id: :class:`int`
         The ID of the person who owns this bot. Used in MyBot.has_perm
     """
-    # A list of "format patterns", essentially the form a variable can take.
-    pformats = {
-        # "bool": r"(\bTrue\b|\bFalse\b)",
-        "str": r"""(?:(?:["”'`]([^"”'`]*)["”'`])|(\w*))""",  # TODO: Update this with capture group backreferencing
-        "float": r"(-?\d+(?:\.\d+)?)",
-        "int": r"(-?\d+)"
-    }
 
     def __init__(self, settings, **kwargs):
         self.settings = settings
@@ -85,6 +78,7 @@ class MyBot(commands.Bot):
         self.load_extension("cogs.vc")
         self.load_extension("cogs.name_history")
         self.load_extension("cogs.message_reactions")
+        self.load_extension("cogs.word")
         await self.start(self.settings["BOT_TOKEN"], *args, **kwargs)
 
     async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
