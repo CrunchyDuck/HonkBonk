@@ -61,9 +61,7 @@ class ReactiveMessageManager:
         message = reacting_message.message
         del self.reacting_message[message.id]
         try:
-            await message.remove_reaction(reacting_message.reaction_previous, self.bot.user)
-            await message.remove_reaction(reacting_message.reaction_next, self.bot.user)
-            await message.remove_reaction(reacting_message.reaction_cancel, self.bot.user)
+            await message.clear_reactions()
         except Exception as e:
             pass
 
@@ -82,14 +80,14 @@ class ReactiveMessageManager:
         await self.message_react(reaction, message_id, user_id)
 
     async def on_message(self, message):
-        # FIXME: This is inefficient. Use a lookup method for messages.
         rm_copy = self.reacting_message.copy()
         for k, reacting_message in rm_copy.items():
             if not reacting_message.on_message_func:
                 continue
-            if message.author in reacting_message.users:
-                if reacting_message.on_message_func(message, reacting_message):
-                    await self.remove_reactive_message(reacting_message)
+            # Is this a user we're expecting a response from?
+            if message.author.id in reacting_message.users:
+                if await reacting_message.on_message_func(message, reacting_message):
+                    return
 
     async def message_react(self, emoji, message_id, user_id):
         if message_id not in self.reacting_message:
@@ -114,6 +112,7 @@ class ReactiveMessageManager:
         except Exception as e:
             # Something went wrong, get rid of it
             await self.remove_reactive_message(reacting_message)
+            raise e
 
 
 @dataclass
@@ -129,7 +128,7 @@ class ReactingMessage:
     wrap: bool
     started_time: float
     seconds_active: int
-    users: list
+    users: list[int]
 
     def next_page(self) -> str:
         self.page_num += 1
