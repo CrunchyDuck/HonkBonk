@@ -84,7 +84,7 @@ class ScheduledEvent:
         Arguments:
             current_time - Current Unix Epoch time in seconds.
         """
-        self.function()
+        self.function(current_time)
         self.update_time(current_time)
 
     def update_time(self, current_time):
