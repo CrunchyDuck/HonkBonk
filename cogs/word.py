@@ -137,7 +137,7 @@ class Words(commands.Cog):
             " :v ": 1
         })
 
-        self.bot.core_help_text["General"] += ["speedrun", "small", "uwu", "big"]
+        self.bot.core_help_text["Words!"] += ["speedrun", "small", "uwu", "big", "8ball"]
 
     @commands.command(aliases=["speedrun"])
     async def speedrun_terms(self, ctx):
@@ -216,6 +216,13 @@ class Words(commands.Cog):
 
         await ctx.send(msg.translate(superscript))
 
+    @commands.command(name="8ball")
+    async def magic_8_ball(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+
+        reply = self.magic_8_ball.get_value()
+        await ctx.send(reply)
+
     @commands.command(aliases=[f"speedrun.help"])
     async def speedrun_terms_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -262,6 +269,19 @@ class Words(commands.Cog):
             **Examples:**
             `c.owo hello`
             `c.uwu how are you doing today`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command("8ball.help")
+    async def magic_8_ball_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            GET FACTS.
+
+            **Examples:**
+            FACT.
+            `c.8ball PIDGE CUTE? (yes)`
             """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
