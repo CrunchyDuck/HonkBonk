@@ -79,6 +79,7 @@ class MyBot(commands.Bot):
         self.load_extension("cogs.name_history")
         self.load_extension("cogs.message_reactions")
         self.load_extension("cogs.word")
+        self.load_extension("cogs.games")
         await self.start(self.settings["BOT_TOKEN"], *args, **kwargs)
 
     async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
