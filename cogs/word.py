@@ -137,7 +137,34 @@ class Words(commands.Cog):
             " :v ": 1
         })
 
-        self.bot.core_help_text["General"] += ["speedrun", "small", "uwu", "big"]
+        self.magic_8_ball = self.bot.Chance({
+            "It is certain": 100,
+            "It is decidedly so.": 100,
+            "Without a doubt.": 100,
+            "Yes - definitely.": 100,
+            "You may rely on it.": 100,
+            "As I see it, yes": 100,
+            "Most likely.": 100,
+            "Outlook good.": 100,
+            "Yes.": 100,
+            "Signs point to yes.": 100,
+            "Reply hazy, try again.": 100,
+            "Ask again later.": 100,
+            "Better not tell you now.": 100,
+            "Cannot predict now.": 100,
+            "Concentrate and ask again.": 100,
+            "Don't count on it.": 100,
+            "My reply is no.": 100,
+            "My sources say no.": 100,
+            "Outlook not so good.": 100,
+            "Very doubtful.": 100,
+            "nyes uwu": 100,
+            "nyo òwó": 100,
+            "m-maybe.... >//<": 100,
+            "i don't knowo wight now >>": 100
+        })
+
+        self.bot.core_help_text["Words!"] += ["speedrun", "small", "uwu", "big", "8ball"]
 
     @commands.command(aliases=["speedrun"])
     async def speedrun_terms(self, ctx):
@@ -216,6 +243,13 @@ class Words(commands.Cog):
 
         await ctx.send(msg.translate(superscript))
 
+    @commands.command(name="8ball")
+    async def magic_8_ball(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+
+        reply = self.magic_8_ball.get_value()
+        await ctx.send(reply)
+
     @commands.command(aliases=[f"speedrun.help"])
     async def speedrun_terms_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -262,6 +296,19 @@ class Words(commands.Cog):
             **Examples:**
             `c.owo hello`
             `c.uwu how are you doing today`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command("8ball.help")
+    async def magic_8_ball_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            GET FACTS.
+
+            **Examples:**
+            FACT.
+            `c.8ball PIDGE CUTE? (yes)`
             """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)

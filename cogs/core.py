@@ -135,13 +135,6 @@ class Core(commands.Cog):
         channel = ctx.message.channel_mentions[0]
         await channel.send(content)
 
-    @commands.command(name="8ball")
-    async def magic_8_ball(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-
-        reply = self.magic_8_ball.get_value()
-        await ctx.send(reply)
-
     @commands.command(name="dm")
     async def dm_user(self, ctx):
         """
@@ -331,19 +324,6 @@ class Core(commands.Cog):
     #     docstring = self.bot.remove_indentation(docstring)
     #     await ctx.send(docstring)
 
-    @commands.command("8ball.help")
-    async def magic_8_ball_help(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-        description = """
-            GET FACTS.
-
-            **Examples:**
-            FACT.
-            `c.8ball PIDGE CUTE? (yes)`
-            """
-        embed = helpers.help_command_embed(self.bot, description)
-        await ctx.send(embed=embed)
-
     @commands.command("pfp.help")
     async def get_pfp_help(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -428,7 +408,7 @@ class Core(commands.Cog):
 
 def setup(bot):
     bot.core_help_text["General"] += [
-        "timestamp", "pat", "kick", "uptime", "pfp", "8ball"]
+        "timestamp", "pat", "kick", "uptime", "pfp"]
     #bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
     bot.add_cog(Core(bot))
 
