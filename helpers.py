@@ -235,7 +235,7 @@ def remove_invoke(message):
     return re.sub(r"^[^\s]+\s*", "", message, count=1)
 
 
-def url_with_params(url: str, params: Dict[str, str]) -> str:
+def url_with_params(url: str, params: dict[str, str]) -> str:
     """Uses the requests module to create a URL with parameters added."""
     url_make = requests.models.PreparedRequest()
     url_make.prepare_url(url, params)
@@ -255,7 +255,7 @@ def ascii_progress_bar(percent: float, filled="▰", unfilled="▱") -> str:
     return progress_bar
 
 
-def get_command_variable(content: str, command_name: str, default=None, remove_after: bool=True):
+def get_command_variable(content: str, command_name: str, default=None, remove_after: bool=True) -> list[str, int]:
     """A common way to get a variable from a command. Not a catch-all function.
     Supported variable types:
       int
@@ -268,6 +268,7 @@ def get_command_variable(content: str, command_name: str, default=None, remove_a
     v = int(r.group(1))
 
     return [content, v]
+
 
 
 # ==== Potentially useful, removed for now ====
