@@ -1,5 +1,6 @@
 from discord.ext import commands
 import discord.errors
+import discord
 import asyncio
 from random import choice
 import helpers
@@ -42,16 +43,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                          ["join", "leave", "play", "description", "search", "screenshot", "seek", "fastforward", "rewind",
                           "clear", "repeat", "skip", "queue", "nowplaying", "pause"]]
         }
-
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
-        if member != self.bot.user:
-            return
-        guild_id = member.guild.id
-        if after.channel is None:
-            if guild_id in self.connections:
-                self.connections[guild_id].cleanup()
-                del self.connections[guild_id]
 
     # TODO: Screenshot from video function
     # TODO: Add admin override
@@ -121,13 +112,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 except pt_exceptions.RegexMatchError:
                     pass
             # Try to match a bandcamp page
-            else:
-                items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
-                if items:
-                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                    await vc.add_playlist_list(items, pos)
-                    await ctx.send(f"Added {len(items)} videos!!!")
-                    return
+            # else:
+            #     items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
+            #     if items:
+            #         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+            #         await vc.add_playlist_list(items, pos)
+            #         await ctx.send(f"Added {len(items)} videos!!!")
+            #         return
 
         # Use the message as a YouTube query.
         if content:
@@ -211,23 +202,39 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             from_i = page_num * 5
             to_i = (page_num + 1) * 5
             videos_in_page = results[from_i:to_i]
-            page = self.YouTubeSearchPage(videos_in_page, page_num, total_results, content, page_total)
+            page = self.YouTubeSearchPage(videos_in_page, page_num, total_results, content, page_total, 5)
             yt_pages.append(page)
 
         # Create reactive message
         first_page = self.YouTubeSearchPage.display_page(yt_pages[0])
         msg = await ctx.send(embed=first_page)
         await self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
-                                                                on_message_func=self.search_reply,
+                                                                on_message_func=self.on_message_youtube_search,
                                                                 wrap=True, seconds_active=60, users=[ctx.author.id])
 
-    async def search_reply(self, message, reactive_message):
-        num = int(message.content) - 1
-        page_num, i = divmod(num, 5)
-        video = reactive_message.message_pages[page_num].videos[i]
+    async def on_message_youtube_search(self, message, reactive_message) -> bool:
+        m = re.match(r"\d+", message.content)
+        if not m:
+            return False
+
+        # Get the video they're requesting
+        num = int(m.group(0))
+        try:
+            page_num, page_pos = divmod(num-1, reactive_message.message_pages[0].per_page)
+            result = reactive_message.message_pages[page_num].videos[page_pos]
+        except IndexError:
+            await message.channel.send(f"{num} invalid >:(")
+            return True
+
+        # Get the VC they or the bot are in.
         vc = await self.get_connected_vc(message, join_if_not_in=True)
-        if vc.add_playlist_item(video):
-            await message.channel.send(embed=embed_added_song(video))
+        if not vc:
+            return True
+
+        # Add the song to the VC
+        await self.bot.ReactiveMessageManager.remove_reactive_message(reactive_message)
+        if await vc.add_playlist_item(result):
+            await message.channel.send(embed=embed_added_song(result))
         return True
 
     @commands.command(aliases=[f"{prefix}.screenshot"])
@@ -666,11 +673,12 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     # Functions
     async def join_voice_channel(self, ctx) -> typing.Union['ServerAudio', None]:
         await ctx.guild.change_voice_state(channel=None)
-        vc = ctx.author.voice.channel
-        message_channel = ctx.message.channel
+        vc = ctx.author.voice
         if not vc:
             await ctx.send(choice(self.not_in_vc_replies))
             return None
+        vc = vc.channel
+        message_channel = ctx.channel
 
         try:
             voice_client = await vc.connect()
@@ -712,6 +720,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         search_total: int
         search_term: str
         page_total: int
+        per_page: int
 
         @staticmethod
         def display_page(page):
