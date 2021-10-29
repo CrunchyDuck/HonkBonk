@@ -18,6 +18,7 @@ import subprocess
 import requests
 import json
 import typing
+from typing import List
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -772,7 +773,7 @@ class PlaylistItem:
 
     @staticmethod
     async def create_from_video_ids(requested_by: str, youtube_api_key: str, video_ids: [str], session: aiohttp.ClientSession,
-                                    duration=3600*3) -> list['PlaylistItem']:
+                                    duration=3600*3) -> List['PlaylistItem']:
         """Creates a PlaylistItem based off of a given YouTube video.
 
         Arguments:
@@ -823,7 +824,7 @@ class PlaylistItem:
 
     @staticmethod
     async def create_from_playlist_id(requested_by: str, youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession,
-                                      duration=3600) -> list['PlaylistItem']:
+                                      duration=3600) -> List['PlaylistItem']:
         """Creates a list of PlaylistItem based off of a given YouTube playlist.
 
         Arguments:
@@ -856,7 +857,7 @@ class PlaylistItem:
         return item_list
 
     @staticmethod
-    async def create_from_bandcamp_url(requested_by: str, url) -> list['PlaylistItem']:
+    async def create_from_bandcamp_url(requested_by: str, url) -> List['PlaylistItem']:
         r = requests.get(url)
         if r.status_code != 200:
             return []
@@ -891,7 +892,7 @@ class PlaylistItem:
 
 # Requires FFMPEG
 class ServerAudio:
-    def __init__(self, voice_client, message_channel, async_loop, yt_api_key):
+    def __init__(self, voice_client: discord.VoiceChannel, message_channel, async_loop, yt_api_key):
         self.vc = voice_client
         self.message_channel = message_channel  # The place notifications and messages are sent.
         # FIXME: The first song in the playlist tends to be skipped.
@@ -930,7 +931,7 @@ class ServerAudio:
             return True
             #await self.message_channel.send(f"Added \"{item.title}\" by \"{item.author}\"")
 
-    async def add_playlist_list(self, items: list[PlaylistItem], pos=-1):
+    async def add_playlist_list(self, items: List[PlaylistItem], pos=-1):
         for item in items:
             await self.add_playlist_item(item, pos)
             if pos >= 0:  # Update position with the new size of the playlist.

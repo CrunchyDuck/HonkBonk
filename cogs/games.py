@@ -6,6 +6,7 @@ from asyncio import sleep
 import helpers
 from HonkBonk import MyBot
 import discord
+from typing import Tuple
 
 
 class BadGames(commands.Cog):
@@ -31,7 +32,7 @@ class BadGames(commands.Cog):
                 await game.time_out()
                 self.ongoing_games.pop(message_id)
 
-    def get_players(self, ctx) -> tuple[discord.Member, discord.Member]:
+    def get_players(self, ctx) -> Tuple[discord.Member, discord.Member]:
         men = ctx.message.mentions
         if not men:
             raise ValueError
