@@ -715,7 +715,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     @dataclass
     class YouTubeSearchPage:
-        videos: list['PlaylistItem']
+        videos: List['PlaylistItem']
         page_num: int
 
         search_total: int

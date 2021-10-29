@@ -4,6 +4,7 @@ import helpers
 from dataclasses import dataclass
 from math import ceil
 from datetime import datetime
+from typing import List
 
 
 class NameHistory(commands.Cog):
@@ -125,7 +126,7 @@ class NameHistory(commands.Cog):
 
     @dataclass
     class ChangedNamePage:
-        row_objs: list[object]  # Search results from an SQLite3 query.
+        row_objs: List[object]  # Search results from an SQLite3 query.
         icon_url: str
         page_num: int
 

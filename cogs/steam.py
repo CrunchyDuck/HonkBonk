@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from math import ceil
 import discord
 import re
+from typing import List
 
 
 # TODO: Get 64 user id from vanity url
@@ -27,7 +28,7 @@ class SteamGames(commands.Cog):
     async def on_ready(self):
         print(f"{self.bot.user} has connected to Discord.")
     
-    def owned_games(self, key: str, steamid: int) -> list['SteamGames.SteamGame']:
+    def owned_games(self, key: str, steamid: int) -> List['SteamGames.SteamGame']:
         """
         Gets a dictionary of all games owned by steamid.
         Parameters
@@ -53,7 +54,7 @@ class SteamGames(commands.Cog):
         return games
 
     @staticmethod
-    def steam_user_data(steamid: int) -> list[str, str]:
+    def steam_user_data(steamid: int) -> List[str]:
         url = f"https://steamcommunity.com/profiles/{steamid}"
         page = requests.get(url).text
 
@@ -96,7 +97,7 @@ class SteamGames(commands.Cog):
 
     @dataclass
     class GameListPage:
-        games: list['SteamGames.SteamGame']
+        games: List['SteamGames.SteamGame']
         page_num: int
 
         search_term: str
@@ -106,7 +107,7 @@ class SteamGames(commands.Cog):
         total_pages: int
 
         @staticmethod
-        def create_from_SteamGame(games: list['SteamGames.SteamGame'], search_term, acc_id, page_size=20) -> list['SteamGames.GameListPage']:
+        def create_from_SteamGame(games: List['SteamGames.SteamGame'], search_term, acc_id, page_size=20) -> List['SteamGames.GameListPage']:
             acc_name, acc_img_url = SteamGames.steam_user_data(acc_id)
             num_pages = ceil(len(games)/page_size)
             pages = []

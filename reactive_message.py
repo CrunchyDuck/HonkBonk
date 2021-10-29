@@ -128,7 +128,7 @@ class ReactingMessage:
     wrap: bool
     started_time: float
     seconds_active: int
-    users: list[int]
+    users: List[int]
 
     def next_page(self) -> str:
         self.page_num += 1
