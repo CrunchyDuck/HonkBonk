@@ -22,7 +22,10 @@ class Reaction(commands.Cog, name="message_reactions"):
         im_response = re.match(r"i[']?(?:m| am) ?(.{1,32})(?:$|[ ,.!])", msg)
         if server and im_response:
             name = im_response.group(1).strip()
-            await message.author.edit(reason="They said \"I'm\" and that must be punished.", nick=name)
+            try:
+                await message.author.edit(reason="They said \"I'm\" and that must be punished.", nick=name)
+            except discord.errors.Forbidden:
+                pass
 
 
 def setup(bot):
