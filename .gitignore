@@ -9,5 +9,3 @@
 !example_settings.json
 !scheduler.py
 !helpers.py
-!reactive_message.py
-!name_history.py
