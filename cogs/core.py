@@ -4,11 +4,12 @@ from discord.ext import commands
 import logging
 import traceback
 import helpers
+from HonkBonk import MyBot
 
 
 class Core(commands.Cog):
     """Admin commands. Mostly just fun things for me to toy with, sometimes test, rarely useful."""
-    def __init__(self, bot):
+    def __init__(self, bot: MyBot):
         self.bot = bot
         self.init_db(bot.cursor)
         self.bot.Scheduler.add(self.vc_sleep_timer, 5)
@@ -29,33 +30,6 @@ class Core(commands.Cog):
         #     "a dinnae ken": 100,
         #     "dunno": 100
         # })
-
-        self.magic_8_ball = self.bot.Chance({
-            "It is certain": 100,
-            "It is decidedly so.": 100,
-            "Without a doubt.": 100,
-            "Yes - definitely.": 100,
-            "You may rely on it.": 100,
-            "As I see it, yes": 100,
-            "Most likely.": 100,
-            "Outlook good.": 100,
-            "Yes.": 100,
-            "Signs point to yes.": 100,
-            "Reply hazy, try again.": 100,
-            "Ask again later.": 100,
-            "Better not tell you now.": 100,
-            "Cannot predict now.": 100,
-            "Concentrate and ask again.": 100,
-            "Don't count on it.": 100,
-            "My reply is no.": 100,
-            "My sources say no.": 100,
-            "Outlook not so good.": 100,
-            "Very doubtful.": 100,
-            "nyes uwu": 100,
-            "nyo òwó": 100,
-            "m-maybe.... >//<": 100,
-            "i don't knowo wight now >>": 100
-        })
 
     async def on_command_error(self, ctx, error):
         """Triggered when a prefix is found, but no command is."""
@@ -408,7 +382,7 @@ class Core(commands.Cog):
 
 def setup(bot):
     bot.core_help_text["General"] += [
-        "timestamp", "pat", "kick", "uptime", "pfp"]
+        "timestamp", "pat", "kick", "uptime", "pfp", "sleep"]
     #bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
     bot.add_cog(Core(bot))
 
