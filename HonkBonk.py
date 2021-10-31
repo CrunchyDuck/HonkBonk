@@ -6,7 +6,6 @@ from datetime import datetime
 from discord.ext import commands
 from random import random
 from collections import defaultdict
-from pathlib import Path
 from json import loads
 from scheduler import Scheduler
 from reactive_message import ReactiveMessageManager
