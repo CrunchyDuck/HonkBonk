@@ -10,6 +10,8 @@ from json import loads
 from scheduler import Scheduler
 from reactive_message import ReactiveMessageManager
 import helpers
+import re
+import typing
 
 
 class MyBot(commands.Bot):
@@ -128,6 +130,37 @@ class MyBot(commands.Bot):
 
         # If all falsifying checks fail, user has perms.
         return True
+
+    def admin_override(self, message: discord.Message) -> typing.Union[discord.User, discord.Member]:
+        """
+        If a command is invoked based upon a user, this function can allow an admin to invoke it on someone's behalf.
+        For example, you many may do c.dm_me "hello" @Pidgezz to make the bot DM that user, rather than the person invoking.
+        Valid override formats (In the order they're tried):
+            ORself  # This disabled the admin_override, in the event mentions might mess it up.
+            A mention from a user
+
+        Arguments:
+            remove_result: Removes any found
+        """
+        # Is user admin?
+        if message.author.id != self.owner_id:
+            return message.author
+
+        # Is it explicitly disabled?
+        if re.search("ORself", message.content):
+            return message.author
+
+        #r = re.search(r"override=(\d+)", message.content)
+        #if r:
+        #    return self.get_user
+
+        # Did the admin mention anyone?
+        if len(message.mentions) > 0:
+            return message.mentions[0]
+
+        return message.author
+
+
 
     # def is_channel_ignored(self, ctx=None, server=0, channel_id=0):
     #     """Checks if a channel or category is ignored."""

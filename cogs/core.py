@@ -193,10 +193,11 @@ class Core(commands.Cog):
             await ctx.send("Provide a time to remove you from the VC!")
             return
         time = int(time.group(1))
+        target_user = self.bot.admin_override(ctx.message)
 
         # Check if there's already an entry for this user.
         self.bot.cursor.execute("SELECT rowid, * FROM sleep_timer"
-                                f" WHERE user={ctx.author.id} AND guild={ctx.guild.id}")
+                                f" WHERE user={target_user.id} AND guild={ctx.guild.id}")
         result = self.bot.cursor.fetchone()
         time = max(min(1440.0, time), 0.016)
         end_time = helpers.time_from_now(minutes=time)
@@ -206,9 +207,9 @@ class Core(commands.Cog):
         if result:
             self.bot.cursor.execute(f"UPDATE sleep_timer SET time={end_time} WHERE rowid={result['rowid']}")
         else:
-            self.bot.cursor.execute(f"INSERT INTO sleep_timer VALUES(?,?,?,?)", (ctx.guild.id, ctx.author.id, end_time, ctx.channel.id))
+            self.bot.cursor.execute(f"INSERT INTO sleep_timer VALUES(?,?,?,?)", (ctx.guild.id, target_user.id, end_time, ctx.channel.id))
         self.bot.cursor.execute("commit")
-        await ctx.send(f"{ctx.author.name} will automagically be zapped from any VC in {time_string}.")
+        await ctx.send(f"{target_user.name} will automagically be zapped from any VC in {time_string}.")
 
     async def vc_sleep_timer(self, time_now):
         self.bot.cursor.execute("SELECT rowid, * FROM sleep_timer ORDER BY time ASC")
