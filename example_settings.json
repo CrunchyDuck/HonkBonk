@@ -1,9 +1,19 @@
-# This is an example of a settings.json file, used at various points in the bot.
-# Generally, the purpose is to store bot-dependent or sensitive variables.
-# Change the values here, and rename this file to "settings.json" for it to function.
+# This is an example of a settings.json file, used as a secure way to provide data to my bot.
+# Change the values here, and rename this file to "settings.json" for HonkBonk to function.
 {
-"BOT_TOKEN": "YourTokenHere",    # The token to your discord bot, gotten from the Developer Portal.
-"OWNER_ID": 411365470109958155,  # Your Discord ID! Some functions can only be run by the owner of the bot.
-"PREFIX": "c.",                  # What commands for this bot should be prefixed with.
-"YT_API_KEY": "YourKeyHere",     # Used by audio playing functions to query the YouTube API
+# HonkBonk.py runs 3 bots simulaneously - The general purpose HonkBonk, one for steam functions, and one for room archival.
+"BOT_TOKEN": "YourTokenHere",          # The token to your discord bot, gotten from the Developer Portal.
+"STEAM_BOT_TOKEN": "YourTokenHere",    # Steam bot token - This can be omitted and the steam bot will not be loaded.
+"ARCHIVE_BOT_TOKEN": "YourTokenHere",  # Archive bot token - Like steam bot, can be omitted
+
+"PREFIX": "c.",                        # What commands for the main bot should be prefixed with, e.g c.hello
+"ARCHIVE_PREFIX": "a.",                # Only used if archive bot is loaded.
+"STEAM_BOT_PREFIX": "s.",              # Only used if steam bot is loaded.
+
+"OWNER_ID": 411365470109958155,        # Your Discord ID! Some functions can only be run by the owner of the bot.
+
+"YT_API_KEY": ["YourKeyHere"],         # Used by audio playing functions to query the YouTube API
+
+"STEAM_API_KEY": "YourAPIKey",         # API key used to access the Steam API
+"STEAM_ACC_ID": 12345678912345678      # Default base64 Steam ID used in steam.py searches.
 }

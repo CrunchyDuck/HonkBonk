@@ -409,6 +409,7 @@ def main():
         archive_bot.load_extension("cogs.archive_channel")
         asyncio.ensure_future(archive_bot.start(settings["ARCHIVE_BOT_TOKEN"]))
 
+    # Create steam bot
     if "STEAM_BOT_TOKEN" in settings:
         archive_bot = MyBot(settings, intents=intents)
         archive_bot.command_prefix = settings["STEAM_BOT_PREFIX"]
