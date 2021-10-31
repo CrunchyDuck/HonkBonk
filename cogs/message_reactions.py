@@ -17,9 +17,9 @@ class Reaction(commands.Cog, name="message_reactions"):
     async def on_message(self, message):
         if not await self.bot.has_perm(message, dm=False): return
         server = message.guild.id if message.guild else 0
-        msg = message.content.lower()
+        msg = message.content
 
-        im_response = re.match(r"i[']?(?:m| am) ?(.{1,32})(?:$|[ ,.!])", msg)
+        im_response = re.match(r"i[']?(?:m| am) ?(.{1,32})(?:$|[ ,.!])", msg, flags=re.IGNORECASE)
         if server and im_response:
             name = im_response.group(1).strip()
             try:
