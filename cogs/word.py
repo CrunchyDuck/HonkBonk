@@ -346,7 +346,7 @@ class Words(commands.Cog):
                 for meaning in group["meanings"]:
                     part_of_speech = meaning["partOfSpeech"]
                     for d in meaning["definitions"]:
-                        ex = group.get("example", "")
+                        ex = d.get("example", "")
                         c = cls(phonetic, pronunciation, part_of_speech, d["definition"], ex, d["synonyms"], d["antonyms"],
                                 page_num, word, -1)
                         definitions.append(c)
