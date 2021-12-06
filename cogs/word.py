@@ -214,7 +214,8 @@ class Words(commands.Cog):
             response = requests.get(api_endpoint + word)
             if not response:
                 # TODO: Implement spellcheck api?
-                await cnl.send(f"Could not find `{word}`! Typo?")
+                word = helpers.escape_message(word)
+                await cnl.send(f"Could not find `{word}`!")
                 return
 
             definition_pages = self.WordDefinition.from_api(response.json())
@@ -227,11 +228,12 @@ class Words(commands.Cog):
                  custom_reactions={"💾": self.save_word})
 
     async def save_word(self, reacting_message, user_id):
+        """Called on a `define word` by pressing the little save emoji."""
         d = reacting_message.message_pages[reacting_message.page_num]
         data = (d.search_term, d.definition, d.example, d.part_of_speech, d.phonetic, user_id, helpers.time_now())
         self.bot.cursor.execute("INSERT INTO saved_definitions VALUES(?,?,?,?,?,?,?)", data)
         self.bot.cursor.execute("commit")
-        await reacting_message.message.channel.send(content=f"Saved word!")
+        await reacting_message.message.channel.send(content=f"💾 Saved! Use `c.dict.saved` to view!")
 
     @commands.command(f"{prefix}.saved")
     async def show_saved_words(self, ctx):
@@ -247,7 +249,30 @@ class Words(commands.Cog):
         await self.bot.ReactiveMessageManager.create_reactive_message \
             (reply, self.WordDefinition.display_page, saved_defs,
              wrap=True, seconds_active=60,
+             on_message_func=self.remove_saved_word,
              users=[ctx.author.id])
+
+    async def remove_saved_word(self, message, reactive_message) -> bool:
+        """Called by typing `rm #` after calling c.dict.saved"""
+        try:
+            entry_id = int(re.match(r"rm (\d+)", message.content).group(1))
+        except AttributeError:
+            return False
+
+        # Convert entry_id to rowid
+        try:
+            page_num, page_pos = divmod(entry_id - 1, reactive_message.message_pages[0].per_page)
+            rowid = reactive_message.message_pages[page_num].words_on_page[page_pos]["rowid"]
+        except IndexError:
+            await message.channel.send(f"{entry_id} invalid >:(")
+            return False
+
+        self.bot.cursor.execute(f"DELETE FROM saved_definitions WHERE rowid={rowid}")
+        self.bot.cursor.execute("commit")
+        await self.bot.ReactiveMessageManager.remove_reactive_message(reactive_message)
+        c = random.choice(["Removed!", "vanquished...", "destroyed", "✅", "eradicated", "kerblow", "gone bye bye"])
+        await message.channel.send(c)
+        return True
 
     @commands.command(f"{prefix}.saved.help")
     async def show_saved_words_help(self, ctx):
@@ -265,6 +290,7 @@ class Words(commands.Cog):
     @dataclass
     class WordDefinition:
         phonetic: str
+        pronunciation: str
         part_of_speech: str
         definition: str
         example: str
@@ -279,12 +305,22 @@ class Words(commands.Cog):
         def display_page(page):
             embed = helpers.default_embed()
             embed.title = f"**{page.search_term}**"
+            embed.description = ""
 
-            embed.description = f"""/{page.phonetic}/\n*{page.part_of_speech}*\n\n**{page.definition}**\n"""
+            # Add pronunciation
+            phonetic = f"/{page.phonetic}/"
+            if page.pronunciation != "":
+                # Add pronunciation hyperlink
+                phonetic = f"[{phonetic}](https:{page.pronunciation})"
+            embed.description += f"{phonetic}\n"
+
+            # Add part of speech, definition and example
+            embed.description += f"""*{page.part_of_speech}*\n\n**{page.definition}**\n"""
             if page.example:
                 embed.description += f'"{page.example}"\n'
             embed.description += "\n"
 
+            # Add synonyms/antonyms
             if page.synonyms:
                 embed.description += "**Synonyms**\n```" + ", ".join(page.synonyms) + " ```\n"
             if page.antonyms:
@@ -301,13 +337,17 @@ class Words(commands.Cog):
             page_num = 1
             for group in api_response:
                 word = group["word"]
-                phonetic = group["phonetic"]
-                #audio = group["phonetics"]["audio"]
+                phonetic = group.get("phonetic", "")
+                try:
+                    pronunciation = group["phonetics"][0]["audio"]
+                except Exception as e:
+                    pronunciation = ""
+
                 for meaning in group["meanings"]:
                     part_of_speech = meaning["partOfSpeech"]
                     for d in meaning["definitions"]:
-                        ex = d["example"] if "example" in d else ""  # Not always in the response.
-                        c = cls(phonetic, part_of_speech, d["definition"], ex, d["synonyms"], d["antonyms"],
+                        ex = group.get("example", "")
+                        c = cls(phonetic, pronunciation, part_of_speech, d["definition"], ex, d["synonyms"], d["antonyms"],
                                 page_num, word, -1)
                         definitions.append(c)
                         page_num += 1
@@ -331,12 +371,12 @@ class Words(commands.Cog):
             embed = helpers.default_embed()
             embed.title = f"**Saved definitions**"
             embed.description = ""
-            for word_data in page.words_on_page:
+            for i, word_data in enumerate(page.words_on_page):
                 word = word_data["word"]
                 definition = word_data["definition"]
-                position = word_data["rowid"]
+                position = i + 1 + (page.page_num * page.per_page)
                 embed.description += f"`{position}.` **{word}**: {definition}\n"
-            footer_text = f"Page {page.page_num + 1}/{page.page_total}"
+            footer_text = f"Page {page.page_num + 1}/{page.page_total} | Type \"rm 1\" to remove entry 1."
             embed.set_footer(text=footer_text)
             return embed
 

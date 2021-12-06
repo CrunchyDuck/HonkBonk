@@ -270,17 +270,16 @@ def get_command_variable(content: str, command_name: str, default=None, remove_a
     return [content, v]
 
 
+def escape_message(message):
+    """Make a message 'safe' to send by removing any pings"""
+
+    m = message
+    m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
+    m = m.replace("@", "@\u200b")
+    return m
+
 
 # ==== Potentially useful, removed for now ====
-#
-# def escape_message(message):
-#     """Make a message 'safe' to send by removing any pings"""
-#
-#     m = message
-#     m = m.replace("\\", "\\\\")  # Stops people undoing my escapes.
-#     m = m.replace("@", "@\u200b")
-#     m = m.replace("@everyone", f"@\u200beveryone")
-#     return m
 #
 #
 # def get_variable(string, key=None, type=None, pattern=None, default=None):
