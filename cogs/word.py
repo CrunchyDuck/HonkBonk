@@ -326,6 +326,12 @@ class Words(commands.Cog):
             if page.antonyms:
                 embed.description += "**Antonyms**\n```" + ", ".join(page.antonyms) + " ```\n"
 
+            # Get wikipedia page
+            wiki_page_url = f"https://en.wikipedia.org/wiki/{page.search_term}"
+            r = requests.get(wiki_page_url, stream=True, timeout=1)
+            if r.status_code < 400:
+                embed.description += f"[Wikipedia]({wiki_page_url})\n"
+
             footer_text = f"Page {page.page_num}/{page.page_total}"
             embed.set_footer(text=footer_text)
             return embed
