@@ -1,11 +1,20 @@
 from discord.ext import commands
+import discord
+import re
 import random
 import helpers
+import requests
+from dataclasses import dataclass
+from typing import List
+from math import ceil
 
 
 class Words(commands.Cog):
+    prefix = "dict"
+
     def __init__(self, bot):
         self.bot = bot
+        self.init_db()
         self.speedrun_nouns = self.bot.Chance({
             # normalish names
             "moat": 100,
@@ -165,6 +174,186 @@ class Words(commands.Cog):
         })
 
         self.bot.core_help_text["Words!"] += ["speedrun", "small", "uwu", "big", "8ball"]
+        self.bot.core_help_text["modules"] += [self.prefix]
+        self.help_dict = {
+            "Commands": [f"{self.prefix}." + name for name in ["saved"]]
+        }
+
+    def init_db(self):
+        cursor = self.bot.cursor
+        cursor.execute("begin")
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS saved_definitions ("
+            "word STRING," 
+            "definition STRING," 
+            "example STRING," 
+            "part_of_speech STRING," 
+            "phonetic STRING," 
+            "user_id INTEGER,"  
+            "time INTEGER"
+            ")")
+        cursor.execute("commit")
+
+    @commands.command(f"{prefix}.help")
+    async def dict_module_help(self, ctx):
+        """The core help command."""
+        if not await self.bot.has_perm(ctx, dm=True): return
+        desc = "Get the definition of a word!\nType `define {word}`, E.G `define halcyon`\nWorks in DMs."
+        await ctx.send(embed=self.bot.create_help(self.help_dict, desc))
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if not await self.bot.has_perm(message, dm=True): return
+        cnl = message.channel
+        msg = message.content
+
+        asking_for_define = re.match(r"define (.+)", msg, flags=re.IGNORECASE)
+        if asking_for_define:
+            api_endpoint = "https://api.dictionaryapi.dev/api/v2/entries/en/"
+            word = asking_for_define.group(1).strip()
+            response = requests.get(api_endpoint + word)
+            if not response:
+                # TODO: Implement spellcheck api?
+                await cnl.send(f"Could not find `{word}`! Typo?")
+                return
+
+            definition_pages = self.WordDefinition.from_api(response.json())
+            first_page = self.WordDefinition.display_page(definition_pages[0])
+            reply = await cnl.send(embed=first_page)
+            await self.bot.ReactiveMessageManager.create_reactive_message\
+                (reply, self.WordDefinition.display_page, definition_pages,
+                 wrap=True, seconds_active=120,
+                 users=[message.author.id],
+                 custom_reactions={"💾": self.save_word})
+
+    async def save_word(self, reacting_message, user_id):
+        d = reacting_message.message_pages[reacting_message.page_num]
+        data = (d.search_term, d.definition, d.example, d.part_of_speech, d.phonetic, user_id, helpers.time_now())
+        self.bot.cursor.execute("INSERT INTO saved_definitions VALUES(?,?,?,?,?,?,?)", data)
+        self.bot.cursor.execute("commit")
+        await reacting_message.message.channel.send(content=f"Saved word!")
+
+    @commands.command(f"{prefix}.saved")
+    async def show_saved_words(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        uid = ctx.author.id
+        self.bot.cursor.execute(f"SELECT rowid,* FROM saved_definitions WHERE user_id={uid}")
+
+        saved_defs = self.SavedDefinitions.from_sql(self.bot.cursor.fetchall())
+        if not saved_defs:
+            return await ctx.send(content="No saved words!")
+        first_page = self.SavedDefinitions.display_page(saved_defs[0])
+        reply = await ctx.send(embed=first_page)
+        await self.bot.ReactiveMessageManager.create_reactive_message \
+            (reply, self.WordDefinition.display_page, saved_defs,
+             wrap=True, seconds_active=60,
+             users=[ctx.author.id])
+
+    @commands.command(f"{prefix}.saved.help")
+    async def show_saved_words_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+        Show the words you've saved! Deleting not implemented yet :)
+
+        **Examples:**
+        studying for that test
+        `c.dict.saved`
+        """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @dataclass
+    class WordDefinition:
+        phonetic: str
+        part_of_speech: str
+        definition: str
+        example: str
+        synonyms: List[str]
+        antonyms: List[str]
+        page_num: int
+
+        search_term: str
+        page_total: int
+
+        @staticmethod
+        def display_page(page):
+            embed = helpers.default_embed()
+            embed.title = f"**{page.search_term}**"
+
+            embed.description = f"""/{page.phonetic}/\n*{page.part_of_speech}*\n\n**{page.definition}**\n"""
+            if page.example:
+                embed.description += f'"{page.example}"\n'
+            embed.description += "\n"
+
+            if page.synonyms:
+                embed.description += "**Synonyms**\n```" + ", ".join(page.synonyms) + " ```\n"
+            if page.antonyms:
+                embed.description += "**Antonyms**\n```" + ", ".join(page.antonyms) + " ```\n"
+
+            footer_text = f"Page {page.page_num}/{page.page_total}"
+            embed.set_footer(text=footer_text)
+            return embed
+
+        @classmethod
+        def from_api(cls, api_response):
+            definitions = []
+
+            page_num = 1
+            for group in api_response:
+                word = group["word"]
+                phonetic = group["phonetic"]
+                #audio = group["phonetics"]["audio"]
+                for meaning in group["meanings"]:
+                    part_of_speech = meaning["partOfSpeech"]
+                    for d in meaning["definitions"]:
+                        ex = d["example"] if "example" in d else ""  # Not always in the response.
+                        c = cls(phonetic, part_of_speech, d["definition"], ex, d["synonyms"], d["antonyms"],
+                                page_num, word, -1)
+                        definitions.append(c)
+                        page_num += 1
+
+            page_total = page_num - 1
+            for definition in definitions:
+                definition.page_total = page_total
+
+            return definitions
+
+    @dataclass
+    class SavedDefinitions:
+        words_on_page: List[List]
+        page_num: int
+
+        page_total: int
+        per_page: int
+
+        @staticmethod
+        def display_page(page):
+            embed = helpers.default_embed()
+            embed.title = f"**Saved definitions**"
+            embed.description = ""
+            for word_data in page.words_on_page:
+                word = word_data["word"]
+                definition = word_data["definition"]
+                position = word_data["rowid"]
+                embed.description += f"`{position}.` **{word}**: {definition}\n"
+            footer_text = f"Page {page.page_num + 1}/{page.page_total}"
+            embed.set_footer(text=footer_text)
+            return embed
+
+        @classmethod
+        def from_sql(cls, sql_result, results_per_page=20):
+            ret = []
+
+            page_total = ceil(len(sql_result) / results_per_page)
+            for page_num in range(page_total):
+                from_i = page_num * results_per_page
+                to_i = (page_num + 1) * results_per_page
+                words_on_page = sql_result[from_i:to_i]
+
+                page = cls(words_on_page, page_num, page_total, results_per_page)
+                ret.append(page)
+            return ret
+
 
     @commands.command(aliases=["speedrun"])
     async def speedrun_terms(self, ctx):

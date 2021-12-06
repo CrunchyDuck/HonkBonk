@@ -136,7 +136,7 @@ class MyBot(commands.Bot):
         If a command is invoked based upon a user, this function can allow an admin to invoke it on someone's behalf.
         For example, you many may do c.dm_me "hello" @Pidgezz to make the bot DM that user, rather than the person invoking.
         Valid override formats (In the order they're tried):
-            ORself  # This disabled the admin_override, in the event mentions might mess it up.
+            ORself  # This disables the admin_override, in the event mentions might mess it up.
             A mention from a user
 
         Arguments:

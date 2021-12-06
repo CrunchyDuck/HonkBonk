@@ -76,7 +76,6 @@ class Core(commands.Cog):
         message = ""
         for timestamp in timestamps.group(1).split(" "):
             m = int(timestamp.replace(" ", ""))
-            print(m)
             message += helpers.date_from_snowflake(m) + "\n"
 
         await ctx.send(message)

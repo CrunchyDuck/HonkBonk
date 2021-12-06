@@ -21,7 +21,8 @@ class ReactiveMessageManager:
     async def create_reactive_message(self, message, message_page_function: Callable, message_pages: list,
                                 *, page_back: str = "◀️", page_forward: str = "▶️", cancel: str = "🇽",
                                 on_message_func: Callable = None, users: List[int] = None,
-                                seconds_active: int = 20, wrap: bool = True):
+                                seconds_active: int = 20, wrap: bool = True,
+                                custom_reactions=None):
         """
 
         Arguments:
@@ -34,13 +35,18 @@ class ReactiveMessageManager:
             seconds_active - How long the will react for.
             wrap - Whether to wrap to the start page when we reach the end.
             users - A list of user IDs
+            custom_reactions - A dictionary of emoji:function
         """
         current_time = time_now()
         await message.add_reaction(page_back)
         await message.add_reaction(page_forward)
         await message.add_reaction(cancel)
+        custom_reactions = {} if custom_reactions is None else custom_reactions
+        for r in custom_reactions:
+            await message.add_reaction(r)
+
         rm = ReactingMessage(message, on_message_func, message_page_function, message_pages, page_back, page_forward, cancel,
-                             0, wrap, current_time, seconds_active, users)
+                             0, wrap, current_time, seconds_active, users, custom_reactions)
         self.reacting_message[message.id] = rm
 
     async def message_timer_loop(self, current_time):
@@ -97,14 +103,16 @@ class ReactiveMessageManager:
         if reacting_message.users and user_id not in reacting_message.users:
             return
         # Is the reaction one we care about?
-        reaction_str = emoji
-        if reaction_str == reacting_message.reaction_cancel:
+        if emoji == reacting_message.reaction_cancel:
             await self.remove_reactive_message(reacting_message)
             return
-        elif reaction_str == reacting_message.reaction_previous:
+        elif emoji == reacting_message.reaction_previous:
             new_message = reacting_message.previous_page()
-        elif reaction_str == reacting_message.reaction_next:
+        elif emoji == reacting_message.reaction_next:
             new_message = reacting_message.next_page()
+        elif emoji in reacting_message.custom_reactions:
+            await reacting_message.custom_reactions[emoji](reacting_message, user_id)
+            return
         else:
             return
         try:
@@ -129,6 +137,7 @@ class ReactingMessage:
     started_time: float
     seconds_active: int
     users: List[int]
+    custom_reactions: List[str]
 
     def next_page(self) -> str:
         self.page_num += 1
