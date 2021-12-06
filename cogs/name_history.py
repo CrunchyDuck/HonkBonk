@@ -60,10 +60,12 @@ class NameHistory(commands.Cog):
     async def username_history(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
         if not ctx.message.mentions:
-            await ctx.send("Mention a user to get the name history of!")
+            target_user = ctx.author
+        else:
+            target_user = ctx.message.mentions[0]
         embed = embed_fetching_data()
         message = await ctx.send(embed=embed)
-        pages = self.name_history_member(ctx.message.mentions[0], ctx.guild.id, ctx.guild.name)
+        pages = self.name_history_member(target_user, ctx.guild.id, ctx.guild.name)
         method = self.ChangedNamePage.display_page_user
 
         if not pages:
