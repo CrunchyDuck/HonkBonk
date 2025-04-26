@@ -380,11 +380,11 @@ class Core(commands.Cog):
         await ctx.send(embed=self.bot.create_help(self.bot.core_help_text, desc))
 
 
-def setup(bot):
+async def setup(bot):
     bot.core_help_text["General"] += [
         "timestamp", "pat", "kick", "uptime", "pfp", "sleep"]
     #bot.core_help_text["Admins OwOnly"] += ["dm", "speak", "ignore", "ignore.none", "ignore.all"]
-    bot.add_cog(Core(bot))
+    await bot.add_cog(Core(bot))
 
 
 # def teardown(bot):

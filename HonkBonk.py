@@ -75,12 +75,12 @@ class MyBot(commands.Bot):
         # Find and load cogs.
         #cogs = ["cogs.core"]  # Manually loaded for now
 
-        self.load_extension("cogs.core")
-        self.load_extension("cogs.vc")
-        self.load_extension("cogs.name_history")
-        self.load_extension("cogs.message_reactions")
-        self.load_extension("cogs.word")
-        self.load_extension("cogs.games")
+        await self.load_extension("cogs.core")
+        await self.load_extension("cogs.vc")
+        # self.load_extension("cogs.name_history")
+        # self.load_extension("cogs.message_reactions")
+        # self.load_extension("cogs.word")
+        # self.load_extension("cogs.games")
         await self.start(self.settings["BOT_TOKEN"], *args, **kwargs)
 
     async def has_perm(self, input, *, owner_only=False, dm=True, ignore_bot=True):
@@ -382,7 +382,7 @@ class MyBot(commands.Bot):
 # FIXME: Emoji pushing doesn't properly assign ownership.
 # FIXME: Clear attachments after emoji push.
 
-def main():
+async def main():
     # Set up logger.
     logger = logging.getLogger('discord')
     logger.setLevel(logging.INFO)
@@ -390,7 +390,6 @@ def main():
     handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
     logger.addHandler(handler)
 
-    loop = asyncio.get_event_loop()
     # Create HonkBonk.
     with open("settings.json", "r") as f:
         json_text = helpers.remove_python_comments(f.read())
@@ -398,32 +397,29 @@ def main():
     intents = discord.Intents.all()  # All intents makes quick testing easier.
     bot = MyBot(settings, intents=intents)
     bot.remove_command("help")  # Default help is ugly.
-    asyncio.ensure_future(bot.honkbonk_start())
-    asyncio.ensure_future(bot.Scheduler.start())
 
     # Create archivist bot.
-    if "ARCHIVE_BOT_TOKEN" in settings:
-        archive_bot = MyBot(settings, intents=intents)
-        archive_bot.command_prefix = settings["ARCHIVE_PREFIX"]
-        archive_bot.remove_command("help")
-        archive_bot.load_extension("cogs.archive_channel")
-        asyncio.ensure_future(archive_bot.start(settings["ARCHIVE_BOT_TOKEN"]))
+    # if "ARCHIVE_BOT_TOKEN" in settings:
+    #     archive_bot = MyBot(settings, intents=intents)
+    #     archive_bot.command_prefix = settings["ARCHIVE_PREFIX"]
+    #     archive_bot.remove_command("help")
+    #     archive_bot.load_extension("cogs.archive_channel")
+    #     asyncio.ensure_future(archive_bot.start(settings["ARCHIVE_BOT_TOKEN"]))
+    #
+    # # Create steam bot
+    # if "STEAM_BOT_TOKEN" in settings:
+    #     archive_bot = MyBot(settings, intents=intents)
+    #     archive_bot.command_prefix = settings["STEAM_BOT_PREFIX"]
+    #     archive_bot.remove_command("help")
+    #     archive_bot.load_extension("cogs.steam")
+    #     asyncio.ensure_future(archive_bot.start(settings["STEAM_BOT_TOKEN"]))
 
-    # Create steam bot
-    if "STEAM_BOT_TOKEN" in settings:
-        archive_bot = MyBot(settings, intents=intents)
-        archive_bot.command_prefix = settings["STEAM_BOT_PREFIX"]
-        archive_bot.remove_command("help")
-        archive_bot.load_extension("cogs.steam")
-        asyncio.ensure_future(archive_bot.start(settings["STEAM_BOT_TOKEN"]))
-
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        loop.run_until_complete(bot.logout())
-    finally:
-        loop.close()
+    asyncio.create_task(bot.honkbonk_start())
+    asyncio.create_task(bot.Scheduler.start())
+    while True:
+        await asyncio.sleep(10)
 
 
 if __name__ == "__main__":
-    main()
+    # TODO: Self-bot to change PFP using MyBot.Chance
+    asyncio.run(main())

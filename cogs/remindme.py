@@ -1,28 +1,25 @@
 from discord.ext import commands
 import re
-from datetime import datetime
+from discord import errors
 
 
-class remindme(commands.Cog, name="tatsu_is_bad"):
-    r_interval = re.compile(r"(?:^)(.+?\d) yreve")  # Gets the interval, if it exists.
-    r_in_time = re.compile(r"(?:yreve |^)(.+?\d) ni")
-
+class RemindCog(commands.Cog, name="tatsu_is_bad"):
     def __init__(self, bot):
         self.bot = bot
         self.init_db(self.bot.cursor)
-        self.bot.Scheduler.add(self.remind_time, 1)
+        self.bot.Scheduler.add(self.remind_timer, 1)
 
     @commands.command(name="remind", aliases=["remindme", "r"])
     async def remind(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         reminder = self.get_reminder_time(ctx.message.content)
-        to_remind = self.bot.admin_override(ctx)
+        to_remind = self.bot.admin_override(ctx).id
 
-        # No timer reminder
+        # Not timed reminder
         if not reminder["time"] and not reminder["interval"]:
             reply = "Will keep that safe for you :)"
             self.bot.db_do(self.bot.db, "INSERT INTO remindme VALUES(?,?,?,?,?)",
-                           reminder["msg"], to_remind.id, 0, 0, 0)
+                           reminder["msg"], to_remind, 0, 0, 0)
         # Reminder with timer
         else:
             time = self.bot.time_from_string(reminder["time"])  # Convert the time from the command into seconds.
@@ -33,7 +30,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             repeat_interval = min(86400 * 30, repeat_interval)  # 1 month limit.
 
             self.bot.db_do(self.bot.db, "INSERT INTO remindme VALUES(?,?,?,?,?)",
-                           reminder["msg"], to_remind.id, endtime, repeat_interval, 1)
+                           reminder["msg"], to_remind, endtime, repeat_interval, 1)
 
             how_long = self.bot.time_to_string(seconds=time)
             reply = f"**:alarm_clock:  |  Got it! I'll remind you in {how_long}**"
@@ -43,8 +40,7 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
     async def my_reminders(self, ctx):
         if not await self.bot.has_perm(ctx, dm=True): return
         user = self.bot.owner_override(ctx).id
-
-        remove = int(self.bot.get_variable(ctx.message.content, "remove", type="keyword", default=0))
+        remove = self.bot.get_variable(ctx.message.content, "remove", type="keyword", default=False)
 
         # Return a list of reminders
         if not remove:
@@ -64,9 +60,9 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
             await ctx.send(self.bot.escape_message(hb_response))
         # Remove reminder.
         else:
-            unowned_ids = []
-            unrecognized_ids = []
             deleted_ids = []
+            unrecognized_ids = []
+            unowned_ids = []
 
             # Run through each ID and try to delete it.
             for remove_id in re.finditer("\d+", ctx.message.content):
@@ -86,24 +82,27 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
             # Formulate response
             hb_response = "Deleted reminders: " + " ".join(deleted_ids)  # Will always be sent even if nothing was deleted.
-            if unowned_ids:
-                hb_response += "\nReminders you didn't own (bad person): " + " ".join(unowned_ids)
             if unrecognized_ids:
                 hb_response += "\nIds that weren't found: " + " ".join(unrecognized_ids)
+            if unowned_ids:
+                hb_response += "\nReminders you didn't own (bad person): " + " ".join(unowned_ids)
 
             await ctx.send(hb_response)
 
     # Timed command
-    async def remind_time(self, time_now):
+    async def remind_timer(self, time_now):
         entries = self.bot.db_get(self.bot.db, "SELECT rowid, * FROM remindme WHERE timed=1 ORDER BY time ASC")
         for target in entries:
             if time_now > target["time"]:
                 user = self.bot.get_user(target["user_id"])
                 try:
                     await user.send(f"**:alarm_clock: Reminder:** {target['message']}")
-                except AttributeError:
-                    print(f"Could not message {target['user_id']}")
+                except errors.Forbidden:
+                    print(f"Not allowed to message {target['user_id']}\nMessage: {target['message']}")
                     pass
+                except Exception as e:
+                    print(f"Exception activating reminder.\n{target}")
+
 
                 if not target["interval"]:  # Repeat reminders.
                     self.bot.db_do(self.bot.db, f"DELETE FROM remindme WHERE rowid=?", target["rowid"])
@@ -155,10 +154,10 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
         Gets the message, time to remind, and regularity to remind from a remindme command.
         Returns: Dict["msg": "", "interval": "", "time": ""]
         """
-        # Remove the invoking of the command.
-        command = command.replace("c.remind ", "")
-        command = command.replace("c.remindme ", "")
-        command = command[::-1]  # Reverse the string to match backwards.
+        # To get the "msg" value in this dictionary,
+        # we strip away anything that can be considered part of the command invocation and store whatever's left.
+        match = {"interval": "", "time": "", "msg": ""}
+        message = re.sub(".*? ", "", message, count=1)  # Remove the c.remind or like from the start of the command.
 
         # Time
         in_time_start = None
@@ -221,14 +220,18 @@ class remindme(commands.Cog, name="tatsu_is_bad"):
 
         cursor.execute("commit")
 
+    def UI_frame(self):
+        """Returns a frame for this cog's tab."""
+        pass
+
 
 def setup(bot):
     for help in ["remind", "reminders"]:
         bot.core_help_text["General"] += [help]
-    bot.add_cog(remindme(bot))
+    bot.add_cog(RemindCog(bot))
 
 
 def teardown(bot):
     for help in ["remind", "reminders"]:
         bot.core_help_text["General"].remove(help)
-    bot.remove_cog(remindme(bot))
+    bot.remove_cog(RemindCog(bot))

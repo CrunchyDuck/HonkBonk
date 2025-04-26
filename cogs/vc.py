@@ -4,9 +4,9 @@ import discord
 import asyncio
 from random import choice
 import helpers
-import pytube
-import pytube.exceptions as pt_exceptions
-from pytube import extract, request
+# import pytube
+# import pytube.exceptions as pt_exceptions
+# from pytube import extract, request
 import re
 from time import time
 import os
@@ -32,10 +32,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # fun stuff
         self.not_in_vc_replies = [
             "You're not in a VC you big DUMMY!",
-            "AHAHAH YOU'RE AN IDIOT! YOU'RE NOT IN A VC!!!",
-            "my god can you believe this dude ain't in a vc",
-            "lmao idiot.",
-            "god that's - oh man you posted cringe, you're not even in a vc.....",
             "silly little plonker",
         ]
         self.yt_api_key = self.bot.settings["YT_API_KEY"][0]
@@ -67,105 +63,105 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     async def play_song_top(self, ctx):
         await self.play_song(ctx, 0)
 
-    async def play_song(self, ctx, pos=-1):
-        if not await self.bot.has_perm(ctx, dm=False): return
-        content = helpers.remove_invoke(ctx.message.content)
-        # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
-        # Try to get a link.
-        url_match = re.match("^<?([^ >]+)", content)
-        if url_match:
-            # YouTube URL match
-            if re.match(
-                    r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
-                    url_match.group(1)):
-                # Try to match a YouTube video.
-                try:
-                    video_id = extract.video_id(url_match.group(1))
-                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                    item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id],
-                                                                    self.session)
-                    if not item:
-                        await ctx.send("Video too long!")
-                        return
-                    item = item[0]
-                    if await vc.add_playlist_item(item, pos):
-                        embed = embed_added_song(item)
-                        await ctx.send(embed=embed)
-                    return
-                except pt_exceptions.RegexMatchError:
-                    pass
-
-                # Try to match a YouTube playlist.
-                try:
-                    playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
-                    vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-                    playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
-                    playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key,
-                                                                                playlist_id, self.session)
-                    if not playlist_items:
-                        await ctx.send("Cannot find a playlist with the provided URL D:")
-                        return
-                    await vc.add_playlist_list(playlist_items, pos)
-                    await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
-                    return
-                except KeyError:
-                    pass
-                except pt_exceptions.RegexMatchError:
-                    pass
-            # Try to match a bandcamp page
-            # else:
-            #     items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
-            #     if items:
-            #         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-            #         await vc.add_playlist_list(items, pos)
-            #         await ctx.send(f"Added {len(items)} videos!!!")
-            #         return
-
-        # Use the message as a YouTube query.
-        if content:
-            result_num_match = re.search(r"res=(\d+)", content)
-            if result_num_match:
-                content = content.replace(result_num_match.group(0), "")
-                result_num = int(result_num_match.group(1))
-                # Range check
-                if not 1 <= result_num <= 50:
-                    result_num = max(min(result_num, 50), 1)
-                    await ctx.send(f"{result_num_match.group(0)} out of range, set to {result_num}.")
-
-                result_num -= 1  # 0-index the number.
-            else:
-                result_num = 0
-
-            r = await youtube_search(self.yt_api_key, content, self.session)
-            r = r["items"]
-            number_of_results = len(r)
-            if not number_of_results:
-                await ctx.send(f"No results for {content}")
-                return
-            result_num = min(result_num, number_of_results - 1)  # Ensure result_num isn't outside of bounds.
-
-            video_data = r[result_num]
-            vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-            try:
-                item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key,
-                                                                [video_data["id"]["videoId"]], self.session)
-                item = item[0]
-            except IndexError:
-                await ctx.send("v-v-video too long >//>")
-                return
-            if await vc.add_playlist_item(item, pos):
-                embed = embed_added_song(item)
-                await ctx.send(embed=embed)
-            return
-
-        # Resume a paused song.
-        vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-        if vc:
-            # TODO: Toggle if already playing.
-            reply = await vc.play()
-            await ctx.send(reply)
-        else:
-            await ctx.send("Not in a VC!")
+    # async def play_song(self, ctx, pos=-1):
+    #     if not await self.bot.has_perm(ctx, dm=False): return
+    #     content = helpers.remove_invoke(ctx.message.content)
+    #     # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
+    #     # Try to get a link.
+    #     url_match = re.match("^<?([^ >]+)", content)
+    #     if url_match:
+    #         # YouTube URL match
+    #         if re.match(
+    #                 r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
+    #                 url_match.group(1)):
+    #             # Try to match a YouTube video.
+    #             try:
+    #                 video_id = extract.video_id(url_match.group(1))
+    #                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+    #                 item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id],
+    #                                                                 self.session)
+    #                 if not item:
+    #                     await ctx.send("Video too long!")
+    #                     return
+    #                 item = item[0]
+    #                 if await vc.add_playlist_item(item, pos):
+    #                     embed = embed_added_song(item)
+    #                     await ctx.send(embed=embed)
+    #                 return
+    #             except pt_exceptions.RegexMatchError:
+    #                 pass
+    #
+    #             # Try to match a YouTube playlist.
+    #             try:
+    #                 playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
+    #                 vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+    #                 playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
+    #                 playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key,
+    #                                                                             playlist_id, self.session)
+    #                 if not playlist_items:
+    #                     await ctx.send("Cannot find a playlist with the provided URL D:")
+    #                     return
+    #                 await vc.add_playlist_list(playlist_items, pos)
+    #                 await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
+    #                 return
+    #             except KeyError:
+    #                 pass
+    #             except pt_exceptions.RegexMatchError:
+    #                 pass
+    #         # Try to match a bandcamp page
+    #         # else:
+    #         #     items = await PlaylistItem.create_from_bandcamp_url(ctx.author.display_name, url_match.group(1))
+    #         #     if items:
+    #         #         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+    #         #         await vc.add_playlist_list(items, pos)
+    #         #         await ctx.send(f"Added {len(items)} videos!!!")
+    #         #         return
+    #
+    #     # Use the message as a YouTube query.
+    #     if content:
+    #         result_num_match = re.search(r"res=(\d+)", content)
+    #         if result_num_match:
+    #             content = content.replace(result_num_match.group(0), "")
+    #             result_num = int(result_num_match.group(1))
+    #             # Range check
+    #             if not 1 <= result_num <= 50:
+    #                 result_num = max(min(result_num, 50), 1)
+    #                 await ctx.send(f"{result_num_match.group(0)} out of range, set to {result_num}.")
+    #
+    #             result_num -= 1  # 0-index the number.
+    #         else:
+    #             result_num = 0
+    #
+    #         r = await youtube_search(self.yt_api_key, content, self.session)
+    #         r = r["items"]
+    #         number_of_results = len(r)
+    #         if not number_of_results:
+    #             await ctx.send(f"No results for {content}")
+    #             return
+    #         result_num = min(result_num, number_of_results - 1)  # Ensure result_num isn't outside of bounds.
+    #
+    #         video_data = r[result_num]
+    #         vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+    #         try:
+    #             item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key,
+    #                                                             [video_data["id"]["videoId"]], self.session)
+    #             item = item[0]
+    #         except IndexError:
+    #             await ctx.send("v-v-video too long >//>")
+    #             return
+    #         if await vc.add_playlist_item(item, pos):
+    #             embed = embed_added_song(item)
+    #             await ctx.send(embed=embed)
+    #         return
+    #
+    #     # Resume a paused song.
+    #     vc = await self.get_connected_vc(ctx, join_if_not_in=True)
+    #     if vc:
+    #         # TODO: Toggle if already playing.
+    #         reply = await vc.play()
+    #         await ctx.send(reply)
+    #     else:
+    #         await ctx.send("Not in a VC!")
 
     @commands.command(aliases=[f"{prefix}.description"])
     async def return_description(self, ctx):
@@ -422,7 +418,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
     # === Help functions ===
     # TODO: Document undocumented functions.
-    @commands.command("vc.help")
+    @commands.command(f"{prefix}.help")
     async def vc_module_help(self, ctx):
         """The core help command."""
         if not await self.bot.has_perm(ctx, dm=True): return
@@ -1027,57 +1023,57 @@ class ServerAudio:
         elif item.source == "bandcamp":
             await self.download_bandcamp_item(item)
 
-    async def download_youtube_item(self, item: PlaylistItem) -> None:
-        if self.downloading or self.stopping:
-            return
-        self.downloading = True
-        try:
-            YouTubeObj = pytube.YouTube(item.url)
-        except pt_exceptions.VideoPrivate:
-            await self.message_channel.send("Video is private!")
-            self.downloading = False
-            return
-
-        # FIXME: Fix this to not download the highest quality video possible.
-        stream = YouTubeObj.streams.filter(progressive=True).order_by("abr")[-1]
-        size = stream.filesize
-        amount_downloaded = 0
-
-        path = f"./attachments/{self.vc.guild.id}.mp4"
-        start_time = time()
-        self.stop_download = False  # Removes any previous requests to stop the download.
-        embed = helpers.default_embed()  # Downloading embed.
-        embed = embed_downloading(embed, item, 0)
-        update_message = await self.message_channel.send(embed=embed)
-        with open(path, "wb") as f:
-            stream = pytube.request.stream(stream.url)
-            while amount_downloaded < size:
-                if self.stop_download:
-                    break
-                chunk = next(stream, None)
-                if chunk:
-                    f.write(chunk)
-                    amount_downloaded += len(chunk)
-                else:
-                    break
-                now_time = time()
-                if now_time - start_time >= 1:
-                    self.download_progress = amount_downloaded / size
-                    start_time = now_time
-                    embed = embed_downloading(embed, item, self.download_progress)
-                    await update_message.edit(embed=embed)
-                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
-        self.download_progress = -1
-        self.downloading = False
-        if self.stop_download:
-            embed.description = "Stopped downloady"
-            await update_message.edit(embed=embed_stop_download(embed, item))
-            return
-
-        # Create the "Now playing" embed
-        self.player = Player(self.video_path, self.playlist[0].duration)
-        embed = self.now_playing()
-        await update_message.edit(embed=embed)
+    # async def download_youtube_item(self, item: PlaylistItem) -> None:
+    #     if self.downloading or self.stopping:
+    #         return
+    #     self.downloading = True
+    #     try:
+    #         YouTubeObj = pytube.YouTube(item.url)
+    #     except pt_exceptions.VideoPrivate:
+    #         await self.message_channel.send("Video is private!")
+    #         self.downloading = False
+    #         return
+    #
+    #     # FIXME: Fix this to not download the highest quality video possible.
+    #     stream = YouTubeObj.streams.filter(progressive=True).order_by("abr")[-1]
+    #     size = stream.filesize
+    #     amount_downloaded = 0
+    #
+    #     path = f"./attachments/{self.vc.guild.id}.mp4"
+    #     start_time = time()
+    #     self.stop_download = False  # Removes any previous requests to stop the download.
+    #     embed = helpers.default_embed()  # Downloading embed.
+    #     embed = embed_downloading(embed, item, 0)
+    #     update_message = await self.message_channel.send(embed=embed)
+    #     with open(path, "wb") as f:
+    #         stream = pytube.request.stream(stream.url)
+    #         while amount_downloaded < size:
+    #             if self.stop_download:
+    #                 break
+    #             chunk = next(stream, None)
+    #             if chunk:
+    #                 f.write(chunk)
+    #                 amount_downloaded += len(chunk)
+    #             else:
+    #                 break
+    #             now_time = time()
+    #             if now_time - start_time >= 1:
+    #                 self.download_progress = amount_downloaded / size
+    #                 start_time = now_time
+    #                 embed = embed_downloading(embed, item, self.download_progress)
+    #                 await update_message.edit(embed=embed)
+    #                 await asyncio.sleep(1)  # Let the program send out a heartbeat.
+    #     self.download_progress = -1
+    #     self.downloading = False
+    #     if self.stop_download:
+    #         embed.description = "Stopped downloady"
+    #         await update_message.edit(embed=embed_stop_download(embed, item))
+    #         return
+    #
+    #     # Create the "Now playing" embed
+    #     self.player = Player(self.video_path, self.playlist[0].duration)
+    #     embed = self.now_playing()
+    #     await update_message.edit(embed=embed)
 
     async def download_bandcamp_item(self, item: PlaylistItem) -> None:
         if self.downloading or self.stopping:
@@ -1377,6 +1373,6 @@ class InvalidSeek(Exception):
     pass
 
 
-def setup(bot):
+async def setup(bot):
     bot.core_help_text["modules"] += ["vc"]
-    bot.add_cog(VoiceChannels(bot))
+    await bot.add_cog(VoiceChannels(bot))

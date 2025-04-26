@@ -1,8 +1,9 @@
 import requests
 from random import randint
 from discord.ext import commands
+from discord import File as dFile
 from re import search
-from urllib.request import urlopen, Request
+import os
 
 class sinner(commands.Cog, name="sinner"):
     prefix = "e"
@@ -46,6 +47,31 @@ class sinner(commands.Cog, name="sinner"):
         response = res[pos][0]
         response = response.replace("_", "\\_")
         await ctx.send(response)
+
+    @commands.command(name=f"{prefix}.comic")
+    async def get_comic(self, ctx):
+        if ctx.message.author.id not in [565879875647438851, 411365470109958155]:
+            return
+        page_num = int(self.bot.get_variable(ctx.message.content, type="int", default=1)) - 1
+
+        user_agent = self.user_agent
+        pool_id = 20047
+        params = {"search[id]": pool_id}
+
+        res = requests.get('https://e621.net/pools.json', headers=user_agent, params=params).json()
+        try:
+            page_id = res[0]["post_ids"][page_num]
+        except IndexError:
+            await ctx.send("No page found!")
+            return
+
+        res = requests.get(f"https://e621.net/posts/{page_id}", headers=user_agent)
+        img_url = search(r"""<img id.+?src="(.+?)\"""", res.text).group(1)
+        img_data = requests.get(img_url)
+        with open("attachments/comic.png", "wb") as f:
+            f.write(img_data.content)
+        await ctx.send(file=dFile("attachments/comic.png"))
+        os.remove("attachments/comic.png")
 
     @commands.command(name=f"{prefix}.sentence")
     async def run_on_sentence(self, ctx):

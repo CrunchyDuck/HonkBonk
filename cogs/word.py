@@ -209,6 +209,8 @@ class Words(commands.Cog):
 
         asking_for_define = re.match(r"define (.+)", msg, flags=re.IGNORECASE)
         if asking_for_define:
+            if not await self.bot.is_owner(message.author):
+                return await cnl.send("Down for work :)")
             api_endpoint = "https://api.dictionaryapi.dev/api/v2/entries/en/"
             word = asking_for_define.group(1).strip()
             response = requests.get(api_endpoint + word)
