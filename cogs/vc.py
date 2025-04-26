@@ -16,6 +16,8 @@ import requests
 import json
 import typing
 from typing import List
+from yt_dlp import YoutubeDL
+
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
     prefix = "vc"
@@ -184,7 +186,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send(f"No results for {content}")
             return
 
-        print(r["items"][0])
         ids = [x["id"]["videoId"] for x in r["items"]]  # comma separated IDs.
         results = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, ids, self.session, duration=0)
 
@@ -223,6 +224,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Get the VC they or the bot are in.
         vc = await self.get_connected_vc(message, join_if_not_in=True)
         if not vc:
+            await message.channel.send(f"Not in a VC!")
             return True
 
         # Add the song to the VC
@@ -1021,57 +1023,70 @@ class ServerAudio:
         # elif item.source == "bandcamp":
         #     await self.download_bandcamp_item(item)
 
-    # async def download_youtube_item(self, item: PlaylistItem) -> None:
-    #     if self.downloading or self.stopping:
-    #         return
-    #     self.downloading = True
-    #     try:
-    #         YouTubeObj = pytube.YouTube(item.url)
-    #     except pt_exceptions.VideoPrivate:
-    #         await self.message_channel.send("Video is private!")
-    #         self.downloading = False
-    #         return
-    #
-    #     # FIXME: Fix this to not download the highest quality video possible.
-    #     stream = YouTubeObj.streams.filter(progressive=True).order_by("abr")[-1]
-    #     size = stream.filesize
-    #     amount_downloaded = 0
-    #
-    #     path = f"./attachments/{self.vc.guild.id}.mp4"
-    #     start_time = time()
-    #     self.stop_download = False  # Removes any previous requests to stop the download.
-    #     embed = helpers.default_embed()  # Downloading embed.
-    #     embed = embed_downloading(embed, item, 0)
-    #     update_message = await self.message_channel.send(embed=embed)
-    #     with open(path, "wb") as f:
-    #         stream = pytube.request.stream(stream.url)
-    #         while amount_downloaded < size:
-    #             if self.stop_download:
-    #                 break
-    #             chunk = next(stream, None)
-    #             if chunk:
-    #                 f.write(chunk)
-    #                 amount_downloaded += len(chunk)
-    #             else:
-    #                 break
-    #             now_time = time()
-    #             if now_time - start_time >= 1:
-    #                 self.download_progress = amount_downloaded / size
-    #                 start_time = now_time
-    #                 embed = embed_downloading(embed, item, self.download_progress)
-    #                 await update_message.edit(embed=embed)
-    #                 await asyncio.sleep(1)  # Let the program send out a heartbeat.
-    #     self.download_progress = -1
-    #     self.downloading = False
-    #     if self.stop_download:
-    #         embed.description = "Stopped downloady"
-    #         await update_message.edit(embed=embed_stop_download(embed, item))
-    #         return
-    #
-    #     # Create the "Now playing" embed
-    #     self.player = Player(self.video_path, self.playlist[0].duration)
-    #     embed = self.now_playing()
-    #     await update_message.edit(embed=embed)
+    def progress_hook(self, d):
+        print(d)
+
+    async def download_youtube_item(self, item: PlaylistItem) -> None:
+        if self.downloading or self.stopping:
+            return
+        self.downloading = True
+
+        params = {
+            "progress_hooks": [self.progress_hook],
+            "paths": {"home": "attachments/ytdlp"},
+        }
+        with YoutubeDL(params) as ydl:
+            ydl.download([item.url])
+        return
+
+
+        try:
+            YouTubeObj = pytube.YouTube(item.url)
+        except pt_exceptions.VideoPrivate:
+            await self.message_channel.send("Video is private!")
+            self.downloading = False
+            return
+
+        # FIXME: Fix this to not download the highest quality video possible.
+        stream = YouTubeObj.streams.filter(progressive=True).order_by("abr")[-1]
+        size = stream.filesize
+        amount_downloaded = 0
+
+        path = f"./attachments/{self.vc.guild.id}.mp4"
+        start_time = time()
+        self.stop_download = False  # Removes any previous requests to stop the download.
+        embed = helpers.default_embed()  # Downloading embed.
+        embed = embed_downloading(embed, item, 0)
+        update_message = await self.message_channel.send(embed=embed)
+        with open(path, "wb") as f:
+            stream = pytube.request.stream(stream.url)
+            while amount_downloaded < size:
+                if self.stop_download:
+                    break
+                chunk = next(stream, None)
+                if chunk:
+                    f.write(chunk)
+                    amount_downloaded += len(chunk)
+                else:
+                    break
+                now_time = time()
+                if now_time - start_time >= 1:
+                    self.download_progress = amount_downloaded / size
+                    start_time = now_time
+                    embed = embed_downloading(embed, item, self.download_progress)
+                    await update_message.edit(embed=embed)
+                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
+        self.download_progress = -1
+        self.downloading = False
+        if self.stop_download:
+            embed.description = "Stopped downloady"
+            await update_message.edit(embed=embed_stop_download(embed, item))
+            return
+
+        # Create the "Now playing" embed
+        self.player = Player(self.video_path, self.playlist[0].duration)
+        embed = self.now_playing()
+        await update_message.edit(embed=embed)
 
     async def download_bandcamp_item(self, item: PlaylistItem) -> None:
         if self.downloading or self.stopping:
@@ -1271,10 +1286,8 @@ async def youtube_search(youtube_api_key: str, query: str, session: aiohttp.Clie
     items = list(r["items"])
     for i in range(len(items)-1, -1, -1):
         item = items[i]
-        print(item["id"]["kind"])
         if item["id"]["kind"] != "youtube#video":
             r["items"].pop(i)
-            print(i)
     return r
 
 
