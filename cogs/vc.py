@@ -4,9 +4,6 @@ import discord
 import asyncio
 from random import choice
 import helpers
-# import pytube
-# import pytube.exceptions as pt_exceptions
-# from pytube import extract, request
 import re
 from time import time
 import os
@@ -19,7 +16,6 @@ import requests
 import json
 import typing
 from typing import List
-
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
     prefix = "vc"
@@ -188,6 +184,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send(f"No results for {content}")
             return
 
+        print(r["items"][0])
         ids = [x["id"]["videoId"] for x in r["items"]]  # comma separated IDs.
         results = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, ids, self.session, duration=0)
 
@@ -907,6 +904,7 @@ class ServerAudio:
         self.loop = helpers.StateObject("off", "one", "all")
         asyncio.run_coroutine_threadsafe(self.check_if_song_ended_loop(), self.async_loop)
 
+    # Handle moving to the next song.
     async def check_if_song_ended_loop(self):
         while True:
             if self.song_ended:
@@ -1020,8 +1018,8 @@ class ServerAudio:
     async def download(self, item: PlaylistItem) -> None:
         if item.source == "youtube":
             await self.download_youtube_item(item)
-        elif item.source == "bandcamp":
-            await self.download_bandcamp_item(item)
+        # elif item.source == "bandcamp":
+        #     await self.download_bandcamp_item(item)
 
     # async def download_youtube_item(self, item: PlaylistItem) -> None:
     #     if self.downloading or self.stopping:
@@ -1268,6 +1266,15 @@ async def youtube_search(youtube_api_key: str, query: str, session: aiohttp.Clie
 
     r = await session.request(method="GET", url=url)
     r = await r.json()
+    # NOTE: Because youtube's API is shite, even though I'm filtering for videos only, it will often slip in Topic channels.
+    # Therefore, I filter them out manually here, too.
+    items = list(r["items"])
+    for i in range(len(items)-1, -1, -1):
+        item = items[i]
+        print(item["id"]["kind"])
+        if item["id"]["kind"] != "youtube#video":
+            r["items"].pop(i)
+            print(i)
     return r
 
 
