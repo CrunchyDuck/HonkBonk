@@ -898,10 +898,13 @@ class ServerAudio:
         self.downloading = False
         self.stop_download = False
         self.stopping = False
-        self.video_path = f"./attachments/{self.vc.guild.id}.mp4"
+        self.video_path = f"./attachments/ytdlp"
+        self.current_file_name = ""
         self.async_loop = async_loop  # Used to run song_end.
         self.yt_api_key = yt_api_key
         self.song_ended = False
+        self.update_embed = None
+        self.update_message = None
 
         self.loop = helpers.StateObject("off", "one", "all")
         asyncio.run_coroutine_threadsafe(self.check_if_song_ended_loop(), self.async_loop)
@@ -1018,127 +1021,53 @@ class ServerAudio:
         self.playlist = [current_song]
 
     async def download(self, item: PlaylistItem) -> None:
-        if item.source == "youtube":
-            await self.download_youtube_item(item)
-        # elif item.source == "bandcamp":
-        #     await self.download_bandcamp_item(item)
+        if item.source != "youtube":
+            return
+        # Dispatch a download worker.
+        asyncio.run_coroutine_threadsafe(self.download_youtube_item(item), self.async_loop)
+
+        # Update loop for the embed.
+        # while self.downloading:
+        #     await asyncio.sleep(0.1)
+        #     self.update_embed = embed_downloading(self.update_embed, item, self.download_progress)
+        #     await self.update_message.edit(embed=self.update_embed)
+        #     print("here")
 
     def progress_hook(self, d):
-        print(d)
+        if d["status"] != "finished":
+            return
+        self.current_file_name = d["filename"]
 
     async def download_youtube_item(self, item: PlaylistItem) -> None:
         if self.downloading or self.stopping:
             return
         self.downloading = True
 
+        self.update_embed = helpers.default_embed()  # Downloading embed.
+        self.update_embed = embed_downloading(self.update_embed, item, 0)
+        self.update_message = await self.message_channel.send(embed=self.update_embed)
+
         params = {
             "progress_hooks": [self.progress_hook],
-            "paths": {"home": "attachments/ytdlp"},
+            "paths": {"home": self.video_path},
+            'format': 'm4a/bestaudio/best',
+            'postprocessors': [{  # Extract audio using ffmpeg
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'm4a',
+            }],
+            "quiet": True,
+            "outtmpl": {"default": f"{self.vc.guild.id}.%(ext)s"}
         }
         with YoutubeDL(params) as ydl:
             ydl.download([item.url])
-        return
-
-
-        try:
-            YouTubeObj = pytube.YouTube(item.url)
-        except pt_exceptions.VideoPrivate:
-            await self.message_channel.send("Video is private!")
-            self.downloading = False
-            return
-
-        # FIXME: Fix this to not download the highest quality video possible.
-        stream = YouTubeObj.streams.filter(progressive=True).order_by("abr")[-1]
-        size = stream.filesize
-        amount_downloaded = 0
-
-        path = f"./attachments/{self.vc.guild.id}.mp4"
-        start_time = time()
-        self.stop_download = False  # Removes any previous requests to stop the download.
-        embed = helpers.default_embed()  # Downloading embed.
-        embed = embed_downloading(embed, item, 0)
-        update_message = await self.message_channel.send(embed=embed)
-        with open(path, "wb") as f:
-            stream = pytube.request.stream(stream.url)
-            while amount_downloaded < size:
-                if self.stop_download:
-                    break
-                chunk = next(stream, None)
-                if chunk:
-                    f.write(chunk)
-                    amount_downloaded += len(chunk)
-                else:
-                    break
-                now_time = time()
-                if now_time - start_time >= 1:
-                    self.download_progress = amount_downloaded / size
-                    start_time = now_time
-                    embed = embed_downloading(embed, item, self.download_progress)
-                    await update_message.edit(embed=embed)
-                    await asyncio.sleep(1)  # Let the program send out a heartbeat.
-        self.download_progress = -1
-        self.downloading = False
-        if self.stop_download:
-            embed.description = "Stopped downloady"
-            await update_message.edit(embed=embed_stop_download(embed, item))
-            return
-
-        # Create the "Now playing" embed
-        self.player = Player(self.video_path, self.playlist[0].duration)
-        embed = self.now_playing()
-        await update_message.edit(embed=embed)
-
-    async def download_bandcamp_item(self, item: PlaylistItem) -> None:
-        if self.downloading or self.stopping:
-            return
-
-        self.downloading = True
-        r = requests.get(item.url, stream=True)
-        length = int(r.headers["Content-Length"])
-        start_time = time()
-        amount_downloaded = 0
-
-        self.stop_download = False  # Removes any previous requests to stop the download.
-        embed = helpers.default_embed()  # Downloading embed.
-        embed = embed_downloading(embed, item, 0)
-        update_message = await self.message_channel.send(embed=embed)
-        with open(self.video_path, "wb") as f:  # FIXME: This sometimes hitches
-            print("started")
-            for chunk in r.iter_content(chunk_size=1024*1024):  # 1MB chunks
-                if self.stop_download:
-                    break
-                f.write(chunk)
-                amount_downloaded += len(chunk)
-                now_time = time()
-                if now_time - start_time >= 1:
-                    self.download_progress = amount_downloaded / length
-                    start_time = now_time
-                    embed = embed_downloading(embed, item, self.download_progress)
-                    print(amount_downloaded)
-                    #await update_message.edit(embed=embed)
-                    #await asyncio.sleep(1)  # Let the program send out a heartbeat.
 
         self.download_progress = -1
         self.downloading = False
-        if self.stop_download:
-            embed.description = "Stopped downloady"
-            await update_message.edit(embed=embed_stop_download(embed, item))
-            return
 
         # Create the "Now playing" embed
-        self.player = Player(self.video_path, self.playlist[0].duration)
-        embed = self.now_playing()
-        await update_message.edit(embed=embed)
-
-    def screenshot_current_time(self) -> str:
-        if not self.player:
-            raise NoAudioLoaded
-        output_path = self.video_path[:-3] + "jpg"
-        pipes = subprocess.Popen(rf"""ffmpeg -ss {self.player.current_time} -i {self.video_path} -vframes 1 -q:v 4 {output_path}""",
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        #print(pipes.stderr.read())
-        #print(pipes.stdout.)
-        return output_path
+        self.player = Player(self.current_file_name, self.playlist[0].duration)
+        self.update_embed = self.now_playing()
+        await self.update_message.edit(embed=self.update_embed)
 
     async def song_end(self):
         if self.loop.state == "all":
