@@ -1,23 +1,19 @@
 from discord.ext import commands
-import discord.errors
 import discord
 import asyncio
 from random import choice
 import helpers
 import re
-from time import time
 import os
 from dataclasses import dataclass, field
 from math import ceil
 from random import shuffle
 import aiohttp
-import subprocess
-import requests
-import json
 import typing
 from typing import List
 from yt_dlp import YoutubeDL
 from pathlib import Path
+import subprocess
 
 
 class VoiceChannels(commands.Cog, name="voice_channels"):
@@ -36,7 +32,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.yt_api_key = self.bot.settings["YT_API_KEY"][0]
         self.help_dict = {
             "Playback": [f"{self.prefix}." + x for x in
-                         ["play", "search", "seek", "fastforward", "rewind",
+                         ["play", "playtop", "search", "seek", "fastforward", "rewind",
                           "clear", "repeat", "skip", "pause"]],
             "Basic": [f"{self.prefix}." + x for x in
                          ["join", "leave"]],
@@ -58,6 +54,11 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             replies = ["bye bye :)", "cya :O", "goobye uwu", "boutta head out", "nyeoomm"]
             await ctx.send(choice(replies))
 
+    @commands.command(aliases=[f"{prefix}.playLocal"])
+    async def play_local_command(self, ctx):
+        if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
+
+
     @commands.command(aliases=[f"{prefix}.play", f"{prefix}.p", f"{prefix}.oi"])
     async def play_song_command(self, ctx):
         await self.play_song(ctx)
@@ -73,88 +74,40 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await self.begin_or_resume(ctx)
             return
 
-        # # TODO: Add spotify support. See: https://spotipy.readthedocs.io/en/2.12.0/
-        # # Try to get a link.
-        # url_match = re.match("^<?([^ >]+)", content)
-        # if url_match:
-        #     # YouTube URL match
-        #     if re.match(
-        #             r"(?:https?://)?(?:(?:(?:www\.?)?youtube\.com(?:/(?:(?:watch\?.*?(v=[^&\s]+).*)|(?:v(/.*))|(channel/.+)|(?:user/(.+))|(?:results\?(search_query=.+))))?)|(?:youtu\.be(/.*)?))",
-        #             url_match.group(1)):
-        #         # Try to match a YouTube video.
-        #         try:
-        #             video_id = extract.video_id(url_match.group(1))
-        #             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-        #             item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [video_id],
-        #                                                             self.session)
-        #             if not item:
-        #                 await ctx.send("Video too long!")
-        #                 return
-        #             item = item[0]
-        #             if await vc.add_playlist_item(item, pos):
-        #                 embed = embed_added_song(item)
-        #                 await ctx.send(embed=embed)
-        #             return
-        #         except pt_exceptions.RegexMatchError:
-        #             pass
-        #
-        #         # Try to match a YouTube playlist.
-        #         try:
-        #             playlist_id = extract.playlist_id(url_match.group(1))  # FIXME: This keyerrors on fail, use own regex.
-        #             vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-        #             playlist_id = playlist_id.replace(">", "")  # Match picks up the tag for hiding a link's embed.
-        #             playlist_items = await PlaylistItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key,
-        #                                                                         playlist_id, self.session)
-        #             if not playlist_items:
-        #                 await ctx.send("Cannot find a playlist with the provided URL D:")
-        #                 return
-        #             await vc.add_playlist_list(playlist_items, pos)
-        #             await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
-        #             return
-        #         except KeyError:
-        #             pass
-        #         except pt_exceptions.RegexMatchError:
-        #             pass
-        #
-        #
-        # # Use the message as a YouTube query.
-        # if content:
-        #     result_num_match = re.search(r"res=(\d+)", content)
-        #     if result_num_match:
-        #         content = content.replace(result_num_match.group(0), "")
-        #         result_num = int(result_num_match.group(1))
-        #         # Range check
-        #         if not 1 <= result_num <= 50:
-        #             result_num = max(min(result_num, 50), 1)
-        #             await ctx.send(f"{result_num_match.group(0)} out of range, set to {result_num}.")
-        #
-        #         result_num -= 1  # 0-index the number.
-        #     else:
-        #         result_num = 0
-        #
-        #     r = await youtube_search(self.yt_api_key, content, self.session)
-        #     r = r["items"]
-        #     number_of_results = len(r)
-        #     if not number_of_results:
-        #         await ctx.send(f"No results for {content}")
-        #         return
-        #     result_num = min(result_num, number_of_results - 1)  # Ensure result_num isn't outside of bounds.
-        #
-        #     video_data = r[result_num]
-        #     vc = await self.get_connected_vc(ctx, join_if_not_in=True)
-        #     try:
-        #         item = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key,
-        #                                                         [video_data["id"]["videoId"]], self.session)
-        #         item = item[0]
-        #     except IndexError:
-        #         await ctx.send("v-v-video too long >//>")
-        #         return
-        #     if await vc.add_playlist_item(item, pos):
-        #         embed = embed_added_song(item)
-        #         await ctx.send(embed=embed)
-        #     return
-        #
-        # await self.begin_or_resume(ctx)
+        current_vc = await self.get_connected_vc(ctx, True)
+        first_url = re.match("^<?([^ >]+)", content)
+        if not first_url:
+            await ctx.send("Couldn't find a URL!")
+            return
+
+        youtube_video_match = re.match(
+                r'(?:https?:)?(?:\/\/)?(?:music\.)?(?:[0-9A-Z-]+\.)?(?:youtu\.be\/|youtube(?:-nocookie)?\.com\S*?[^\w\s-])([\w-]{11})(?=[^\w-]|$)(?![?=&+%\w.-]*(?:['"][^<>]*>|<\/a>))[?=&+%\w.-]*",
+                first_url.group(1))
+
+        if youtube_video_match and youtube_video_match.group(1):
+            item = await YouTubeItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, [youtube_video_match.group(1)], self.session)
+            if not item:
+                await ctx.send("couldn't find that video :(")
+                return
+            item = item[0]
+            if not await current_vc.add_playlist_item(item, pos):
+                return
+            embed = embed_added_youtube(item)
+            await ctx.send(embed=embed)
+            return
+
+        youtube_playlist_match = re.search(r'playlist\?list=([^>]+)', first_url.group(1))
+        if youtube_playlist_match and youtube_playlist_match.group(1):
+            playlist_items = await YouTubeItem.create_from_playlist_id(ctx.author.display_name, self.yt_api_key,
+                                                                        youtube_playlist_match.group(1), self.session)
+            if not playlist_items:
+                await ctx.send("Cannot find a playlist with the provided URL D:")
+                return
+            await current_vc.add_playlist_list(playlist_items, pos)
+            await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
+            return
+
+        await ctx.send("Couldn't find a URL!")
 
     async def begin_or_resume(self, ctx):
         # Resume a paused song.
@@ -192,7 +145,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         ids = [x["id"]["videoId"] for x in r["items"]]  # comma separated IDs.
-        results = await PlaylistItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, ids, self.session, duration=0)
+        results = await YouTubeItem.create_from_video_ids(ctx.author.display_name, self.yt_api_key, ids, self.session, duration=0)
 
         page_total = ceil(len(results) / 5)
 
@@ -708,7 +661,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         # Add the song to the VC
         await self.bot.ReactiveMessageManager.remove_reactive_message(reactive_message)
         if await vc.add_playlist_item(result):
-            await message.channel.send(embed=embed_added_song(result))
+            await message.channel.send(embed=embed_added_youtube(result))
         return True
 
     @dataclass
@@ -758,20 +711,34 @@ class Player(discord.FFmpegPCMAudio):
 @dataclass
 class PlaylistItem:
     """Represents a video to be played by ServerAudio"""
-    # TODO: Split this into aggregate items for youtube/bandcamp
-    source: str  # "youtube" or "bandcamp"
-    url: str = field(repr=False)
     title: str
-    author: str
-    description: str = field(repr=False)
     duration: int = field(repr=False)
     requested_by: str
+
+
+@dataclass
+class LocalItem(PlaylistItem):
+    file_path: str
+
+    @staticmethod
+    async def create_from_local_file(requested_by: str, file_path: str) -> List['LocalItem']:
+        data = {"requested_by": requested_by, "file_path": file_path}
+        data["duration"] = int(float(subprocess.check_output(["ffprobe", "-i", file_path, "-show_entries", "format=duration", "-v", "quiet", "-of", 'csv="p=0"',])))
+        data["title"] = Path(file_path).stem
+        return [LocalItem(**data)]
+
+
+@dataclass
+class YouTubeItem(PlaylistItem):
     release_date: str
+    author: str
+    url: str = field(repr=False)
+    description: str = field(repr=False)
     thumbnail_url: str = field(default="", repr=False)
 
     @staticmethod
     async def create_from_video_ids(requested_by: str, youtube_api_key: str, video_ids: [str], session: aiohttp.ClientSession,
-                                    duration=3600*3) -> List['PlaylistItem']:
+                                    duration=3600*3) -> List['YouTubeItem']:
         """Creates a PlaylistItem based off of a given YouTube video.
 
         Arguments:
@@ -782,7 +749,7 @@ class PlaylistItem:
         Returns: Filled PlaylistItem
         """
         ret_list = []
-        data = {"source": "youtube", "requested_by": requested_by}
+        data = {"requested_by": requested_by}
         for chunk_of_videos in chunk_list(video_ids, 50):
             r = await youtube_video_search(youtube_api_key, ",".join(chunk_of_videos), session)
             r = r["items"]
@@ -810,7 +777,7 @@ class PlaylistItem:
 
                 if duration and dur >= duration:
                     continue
-                ret_list.append(PlaylistItem(**data))
+                ret_list.append(YouTubeItem(**data))
 
             # Potentially useful data.
             #r["statistics"]["viewCount"]
@@ -822,7 +789,7 @@ class PlaylistItem:
 
     @staticmethod
     async def create_from_playlist_id(requested_by: str, youtube_api_key: str, playlist_id: str, session: aiohttp.ClientSession,
-                                      duration=3600) -> List['PlaylistItem']:
+                                      duration=3600) -> List['YouTubeItem']:
         """Creates a list of PlaylistItem based off of a given YouTube playlist.
 
         Arguments:
@@ -850,7 +817,7 @@ class PlaylistItem:
                 break
             params["pageToken"] = r["nextPageToken"]
             url = helpers.url_with_params(api_endpoint, params)
-        item_list = await PlaylistItem.create_from_video_ids(requested_by, youtube_api_key, video_ids, session, duration)
+        item_list = await YouTubeItem.create_from_video_ids(requested_by, youtube_api_key, video_ids, session, duration)
 
         return item_list
 
@@ -986,9 +953,7 @@ class ServerAudio:
         current_song = self.playlist.pop(0)
         self.playlist = [current_song]
 
-    async def download(self, item: PlaylistItem) -> None:
-        if item.source != "youtube":
-            return
+    async def download(self, item: YouTubeItem) -> None:
         if self.downloading:
             return
         self.downloading = True
@@ -1002,7 +967,7 @@ class ServerAudio:
             return
         self.current_file_path = Path(d["filename"])
 
-    async def download_youtube_item(self, item: PlaylistItem) -> None:
+    async def download_youtube_item(self, item: YouTubeItem) -> None:
         self.update_embed = helpers.default_embed()  # Downloading embed.
         self.update_embed = embed_downloading(self.update_embed, item, 0)
         self.update_message = await self.message_channel.send(embed=self.update_embed)
@@ -1115,7 +1080,7 @@ class ServerAudio:
         else:
             next_song = None
         this_song = self.playlist[0]
-        embed = embed_now_playing(embed, this_song, next_song, self.player.current_time)
+        embed = embed_now_playing_youtube(embed, this_song, next_song, self.player.current_time)
         return embed
 
     @staticmethod
@@ -1214,7 +1179,7 @@ def ascii_seek_position(percent: float, segments: int = 30) -> str:
     return line_with_seek
 
 
-def embed_downloading(embed, item: PlaylistItem, percent: float):
+def embed_downloading(embed, item: YouTubeItem, percent: float):
     """
     Modifies an embed's description and thumbnail to display the progress through downloading a video.
     Arguments:
@@ -1230,14 +1195,14 @@ def embed_downloading(embed, item: PlaylistItem, percent: float):
     return embed
 
 
-def embed_stop_download(embed, item: PlaylistItem):
+def embed_stop_download(embed, item: YouTubeItem):
     desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
     embed.description = f"{desc}\n\nDownload stopped."
     embed.set_thumbnail(url=item.thumbnail_url)
     return embed
 
 
-def embed_now_playing(embed, item: PlaylistItem, next_item: PlaylistItem = None, song_position=0):
+def embed_now_playing_youtube(embed, item: YouTubeItem, next_item: PlaylistItem = None, song_position=0):
     """Modifies an embed's title, thumbnail and description to display data about the currently playing song."""
     embed.title = "**Now Playing**"
     embed.description = f"[{item.title}]({item.url})\n{item.author}\n\n"
@@ -1248,13 +1213,13 @@ def embed_now_playing(embed, item: PlaylistItem, next_item: PlaylistItem = None,
 
     embed.description += f"`Requested by:` {item.requested_by}\n\n"
 
-    next_song = f"[{next_item.title}]({next_item.url})" if next_item else "Nothing"
+    next_song = f"{next_item.title}" if next_item else "Nothing"
     embed.description += f"`Up next:` {next_song}\n"
     embed.set_thumbnail(url=item.thumbnail_url)
     return embed
 
 
-def embed_added_song(item: PlaylistItem):
+def embed_added_youtube(item: YouTubeItem):
     embed = helpers.default_embed()
     embed.set_thumbnail(url=item.thumbnail_url)
     embed.title = "Added to queue"
