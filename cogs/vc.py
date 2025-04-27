@@ -35,9 +35,13 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         ]
         self.yt_api_key = self.bot.settings["YT_API_KEY"][0]
         self.help_dict = {
-            "Commands": [f"{self.prefix}." + x for x in
-                         ["join", "leave", "play", "description", "search", "screenshot", "seek", "fastforward", "rewind",
-                          "clear", "repeat", "skip", "queue", "nowplaying", "pause"]]
+            "Playback": [f"{self.prefix}." + x for x in
+                         ["play", "search", "seek", "fastforward", "rewind",
+                          "clear", "repeat", "skip", "pause"]],
+            "Basic": [f"{self.prefix}." + x for x in
+                         ["join", "leave"]],
+            "Info": [f"{self.prefix}." + x for x in
+                         ["description", "queue", "nowplaying"]],
         }
 
     # TODO: Screenshot from video function
@@ -207,26 +211,26 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         await self.bot.ReactiveMessageManager.create_reactive_message(msg, self.YouTubeSearchPage.display_page, yt_pages,
                                                                 on_message_func=self.on_message_youtube_search,
                                                                 wrap=True, seconds_active=60, users=[ctx.author.id])
-
-    @commands.command(aliases=[f"{prefix}.screenshot"])
-    async def take_screenshot_now(self, ctx):
-        # FIXME: Screenshot function doesn't work. Think it's to do with discord hogging ffmpeg
-        if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
-        vc = await self.get_connected_vc(ctx)
-        if not vc:
-            await ctx.send("b-baka n-nothing to scewwen *shot* ;3")
-            return
-
-        try:
-            path = vc.screenshot_current_time()
-        except NoAudioLoaded:
-            await ctx.send("o-owo i-it doesn't look like there's anything to take a picture of~")
-            return
-        await ctx.send(file=discord.File(path))
-        try:
-            os.remove(path)
-        except:
-            pass
+    #
+    # @commands.command(aliases=[f"{prefix}.screenshot"])
+    # async def take_screenshot_now(self, ctx):
+    #     # FIXME: Screenshot function doesn't work. Think it's to do with discord hogging ffmpeg
+    #     if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
+    #     vc = await self.get_connected_vc(ctx)
+    #     if not vc:
+    #         await ctx.send("b-baka n-nothing to scewwen *shot* ;3")
+    #         return
+    #
+    #     try:
+    #         path = vc.screenshot_current_time()
+    #     except NoAudioLoaded:
+    #         await ctx.send("o-owo i-it doesn't look like there's anything to take a picture of~")
+    #         return
+    #     await ctx.send(file=discord.File(path))
+    #     try:
+    #         os.remove(path)
+    #     except:
+    #         pass
 
     @commands.command(aliases=[f"{prefix}.seek"])
     async def seek_to_position(self, ctx):
@@ -664,7 +668,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not vc:
             return False
 
-        vc.cleanup()
+        await vc.cleanup()
         await ctx.guild.change_voice_state(channel=None)
         del self.connections[ctx.guild.id]
         return True
@@ -863,8 +867,7 @@ class ServerAudio:
         self.download_progress = -1
         self.downloading = False
         self.stop_download = False
-        self.stopping = False
-        self.downloads_folder = Path("./attachments/ytdl")
+        self.downloads_folder = Path(f"./attachments/ytdl/{self.vc.guild.id}/")
         self.current_file_path = None
         self.async_loop = async_loop  # Used to run song_end.
         self.yt_api_key = yt_api_key
@@ -907,23 +910,20 @@ class ServerAudio:
         """
         Play paused or queued audio.
         """
-        # Song isn't playing/paused.
-        if self.player is None:
-            # Prepare the first item on the playlist.
-            if self.stopping:
-                return "Stopping..."
-            if not self.playlist:
-                # Playlist empty
-                return "Nothing to play!"
-            await self.download(self.playlist[0])
-            if self.player is None:  # Download failed/stopped
-                return "Download failed."
-            self.vc.play(self.player, after=self.song_ended_event)
-            return f"Playing: {self.playlist[0].title}"
-        # Song was paused.
-        else:
+        # Song was paused
+        if self.player is not None:
             self.vc.resume()
             return ":arrow_forward: **Resuming**"
+
+        # Prepare the first item on the playlist.
+        if not self.playlist:
+            # Playlist empty
+            return "Nothing to play!"
+        await self.download(self.playlist[0])
+        if self.player is None:  # Download failed/stopped
+            return "Download failed."
+        self.vc.play(self.player, after=self.song_ended_event)
+        return f"Playing: {self.playlist[0].title}"
 
     def get_description(self):
         if not self.playlist:
@@ -989,7 +989,7 @@ class ServerAudio:
     async def download(self, item: PlaylistItem) -> None:
         if item.source != "youtube":
             return
-        if self.downloading or self.stopping:
+        if self.downloading:
             return
         self.downloading = True
         # Dispatch a download worker.
@@ -1016,7 +1016,8 @@ class ServerAudio:
                 'preferredcodec': 'm4a',
             }],
             #"quiet": True,
-            "outtmpl": {"default": f"{self.vc.guild.id}.%(ext)s"}
+            "outtmpl": {"default": f"%(title)s.%(ext)s"},
+            "overwrites": True
         }
         with YoutubeDL(params) as ydl:
             ydl.download([item.url])
@@ -1033,16 +1034,17 @@ class ServerAudio:
         if self.loop.state == "all":
             self.player = None
             current_song = self.playlist.pop(0)
+            self.vc.stop()
             await self.add_playlist_item(current_song)
         elif self.loop.state == "one":
             self.seek_song(0)
         else:
             self.player = None  # Clear old player away.
             self.playlist.pop(0)
+            self.vc.stop()
         await self.play()  # Play the next song.
 
     def song_ended_event(self, e):
-        print(e)
         self.song_ended = True
 
     def current_time_string(self):
@@ -1053,11 +1055,11 @@ class ServerAudio:
         length_of_song = helpers.seconds_to_SMPTE(self.player.length_of_song)
         return f"`{current_time} / {length_of_song}`"
 
-    def cleanup(self):
+    async def cleanup(self):
         """Cleans up anything ongoing before the bot leaves."""
         self.stop_download = True
-        self.stopping = True
-        self.vc.pause()
+        self.vc.stop()
+        await asyncio.sleep(0.2)
         try:
             os.remove(self.current_file_path)  # FIXME: for some reason this doesn't work. Need to find a way to free up the file
         except Exception as e:
