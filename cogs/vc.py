@@ -738,7 +738,7 @@ class LocalItem(PlaylistItem):
         files = sorted(files)
         local_items = []
         for f in files:
-            local_items += LocalItem.create_from_local_file(requested_by, f)
+            local_items.append(LocalItem.create_from_local_file(requested_by, f))
         return local_items
 
 
@@ -869,6 +869,7 @@ class ServerAudio:
             if self.song_ended:
                 await self.song_end()
                 self.song_ended = False
+                await self.play()
             await asyncio.sleep(1)
 
     async def add_playlist_item(self, item: PlaylistItem, pos=-1):
