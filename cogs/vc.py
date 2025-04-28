@@ -55,19 +55,25 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.playLocal"])
     async def play_local_command(self, ctx):
         if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
-        file_path = helpers.remove_invoke(ctx.message.content)
-        try:
-            local_item = LocalItem.create_from_local_file(ctx.author.display_name, Path(file_path))
-        except FileNotFoundError:
-            await ctx.send(f"No file at {file_path}")
+        file_path = Path(helpers.remove_invoke(ctx.message.content))
+        if not file_path.exists():
+            await ctx.send(f"No file or directory at {file_path}")
             return
-        vc = await self.get_connected_vc(ctx, True)
 
-        if not await vc.add_playlist_item(local_item):
-            return
-        # TODO: Local item embed
-        # embed = embed_added_youtube(item)
-        # await ctx.send(embed=embed)
+        if file_path.is_file():
+            local_item = LocalItem.create_from_local_file(ctx.author.display_name, file_path)
+            vc = await self.get_connected_vc(ctx, True)
+            if await vc.add_playlist_item(local_item) == 1:
+                return
+            # TODO: Local item embed
+            embed = embed_added_local(local_item)
+            await ctx.send(embed=embed)
+        else:
+            local_items = LocalItem.create_from_local_folder(ctx.author.display_name, file_path)
+            vc = await self.get_connected_vc(ctx, True)
+            await vc.add_playlist_items(local_items)
+            # TODO: Local item embed
+            await ctx.send(f"Added {len(local_items)} tracks!")
 
     @commands.command(aliases=[f"{prefix}.play", f"{prefix}.p", f"{prefix}.oi"])
     async def play_song_command(self, ctx):
@@ -100,7 +106,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 await ctx.send("couldn't find that video :(")
                 return
             item = item[0]
-            if not await current_vc.add_playlist_item(item, pos):
+            if await current_vc.add_playlist_item(item, pos) == 1:
                 return
             embed = embed_added_youtube(item)
             await ctx.send(embed=embed)
@@ -113,7 +119,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             if not playlist_items:
                 await ctx.send("Cannot find a playlist with the provided URL D:")
                 return
-            await current_vc.add_playlist_list(playlist_items, pos)
+            await current_vc.add_playlist_items(playlist_items, pos)
             await ctx.send(f"Added {len(playlist_items)} videos!!!")  # TODO: Improve return of "added playlist"
             return
 
@@ -125,7 +131,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if vc:
             # TODO: Toggle if already playing.
             reply = await vc.play()
-            await ctx.send(reply)
+            if reply:
+                await ctx.send(reply)
         else:
             await ctx.send("Not in a VC!")
 
@@ -393,8 +400,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not await self.bot.has_perm(ctx, dm=True): return
         description = """
         Resume a video, or add a new video to the end of the playlist.
-        Youtube videos or bandcamp albums supported.
-        
+        Youtube videos.
+
         **Examples:**
         Resumes playing the current video.
         `c.vc.play`
@@ -402,12 +409,26 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         `c.vc.p https://youtu.be/J7sU9uB8XtU`
         Add a whole heckin playlist
         `c.vc.p <https://www.youtube.com/playlist?list=PLeSM-rQ-jVpulMI3sas4GE6Xh2XH4pwqD>`
-        Add a Bandcamp album
-        `c.vc.p <https://music.disasterpeace.com/album/disasters-for-piano>`
         Search YouTube.
         `c.vc.p duck asks for bread`
         Search YouTube, and take the 5th result. Maximum for res is 50.
         `c.vc.p pigeon cooing sounds res=5`
+        """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.playLocal.help"])
+    async def play_local_song_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+        Add a local audio file to the queue.
+        Only Will can do this :) 
+        
+        **Examples:**
+        Play a specific file
+        `c.vc.playLocal ./attachments/local/World War Z.mp3`
+        Add all files in a folder
+        `c.vc.playLocal D:/Libraries/Audio/Music/Albums`
         """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
@@ -597,7 +618,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         if not vc:
             return False
 
-        await vc.cleanup()
+        await vc.on_leave_vc()
         await ctx.guild.change_voice_state(channel=None)
         del self.connections[ctx.guild.id]
         return True
@@ -636,7 +657,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
 
         # Add the song to the VC
         await self.bot.ReactiveMessageManager.remove_reactive_message(reactive_message)
-        if await vc.add_playlist_item(result):
+        if await vc.add_playlist_item(result) == 0:
             await message.channel.send(embed=embed_added_youtube(result))
         return True
 
@@ -663,7 +684,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             embed.set_footer(text=footer_text)
             return embed
 
-
 class Player(discord.FFmpegPCMAudio):
     def __init__(self, source, duration, *, seek=0):
         if seek == duration:
@@ -687,31 +707,47 @@ class Player(discord.FFmpegPCMAudio):
 @dataclass
 class PlaylistItem:
     """Represents a video to be played by ServerAudio"""
-    title: str
-    duration: int = field(repr=False)
-    requested_by: str
+    title: str = field(default="")
+    duration: int = field(default=0, repr=False)
+    requested_by: str = field(default="")
+    file_path: Path = field(default=None)
 
 
 @dataclass
 class LocalItem(PlaylistItem):
-    file_path: Path
-
     @staticmethod
     def create_from_local_file(requested_by: str, file_path: Path) -> 'LocalItem':
         if not file_path.exists():
             raise FileNotFoundError
         data = {"requested_by": requested_by, "file_path": file_path}
-        data["duration"] = int(float(subprocess.check_output(["ffprobe", "-i", str(file_path), "-show_entries", "format=duration", "-v", "quiet", "-of", 'csv="p=0"',])))
+        data["duration"] = int(float(subprocess.check_output(["ffprobe", "-i", str(file_path.resolve()), "-show_entries", "format=duration", "-of", 'csv=p=0',])))
         data["title"] = file_path.stem
         return LocalItem(**data)
+
+    @staticmethod
+    def create_from_local_folder(requested_by: str, folder_path: Path) -> List['LocalItem']:
+        if not folder_path.exists():
+            raise FileNotFoundError
+        files = []
+        # Inefficient to do multiple searches, but oh well! Only I can use this.
+        files += list(folder_path.glob("*.mp3"))
+        files += list(folder_path.glob("*.m4a"))
+        files += list(folder_path.glob("*.wav"))
+        files += list(folder_path.glob("*.flac"))
+        files += list(folder_path.glob("*.opus"))
+        files = sorted(files)
+        local_items = []
+        for f in files:
+            local_items += LocalItem.create_from_local_file(requested_by, f)
+        return local_items
 
 
 @dataclass
 class YouTubeItem(PlaylistItem):
-    release_date: str
-    author: str
-    url: str = field(repr=False)
-    description: str = field(repr=False)
+    release_date: str = field(default="")
+    author: str = field(default="")
+    url: str = field(default="", repr=False)
+    description: str = field(default="", repr=False)
     thumbnail_url: str = field(default="", repr=False)
 
     @staticmethod
@@ -740,7 +776,11 @@ class YouTubeItem(PlaylistItem):
                 data["thumbnail_url"] = vid["snippet"]["thumbnails"]["high"]["url"]
                 data["release_date"] = vid["snippet"]["publishedAt"][:10]
 
-                dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
+                try:
+                    dur_text = vid["contentDetails"]["duration"]  # Yt provides a weird format.
+                except Exception as e:
+                    print(vid)
+                    raise e
                 match = re.search(r"T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", dur_text)
                 if not match:
                     continue
@@ -832,19 +872,18 @@ class ServerAudio:
             await asyncio.sleep(1)
 
     async def add_playlist_item(self, item: PlaylistItem, pos=-1):
-        """Wrapper for add_song to allow for PlaylistItems"""
-        #await self.add_song(item.url, item.title, item.author, item.description, item.duration)
+        """Returns 1 if the song added was the only song, and thus was automatically played, with a "play" embed."""
         if pos >= 0:
             self.playlist.insert(pos+1, item)
         else:
             self.playlist.append(item)
+
         if len(self.playlist) == 1:  # Only the song that was just added exists.
             await self.play()
-        else:
-            return True
-            #await self.message_channel.send(f"Added \"{item.title}\" by \"{item.author}\"")
+            return 1
+        return 0
 
-    async def add_playlist_list(self, items: List[PlaylistItem], pos=-1):
+    async def add_playlist_items(self, items: List[PlaylistItem], pos=-1):
         for item in items:
             await self.add_playlist_item(item, pos)
             if pos >= 0:  # Update position with the new size of the playlist.
@@ -857,16 +896,23 @@ class ServerAudio:
         """
         # Song was paused
         if self.player is not None:
-            self.vc.resume()
-            return ":arrow_forward: **Resuming**"
+            if self.vc.is_paused():
+                self.vc.resume()
+                return ":arrow_forward: **Resuming**"
+            return ""
 
         # Prepare the first item on the playlist.
         if not self.playlist:
             # Playlist empty
             return "Nothing to play!"
-        await self.download(self.playlist[0])
+        next_item = self.playlist[0]
+        if isinstance(next_item, YouTubeItem):
+            await self.download(next_item)
+        elif isinstance(next_item, LocalItem):
+            await self.prepare_local_item(next_item)
+
         if self.player is None:  # Download failed/stopped
-            return "Download failed."
+            return "Failed to prepare file."
         self.vc.play(self.player, after=self.song_ended_event)
         return f"Playing: {self.playlist[0].title}"
 
@@ -965,6 +1011,7 @@ class ServerAudio:
         with YoutubeDL(params) as ydl:
             ydl.download([item.url])
 
+        item.file_path = self.current_file_path
         self.download_progress = -1
         self.downloading = False
 
@@ -973,19 +1020,24 @@ class ServerAudio:
         self.update_embed = self.now_playing()
         await self.update_message.edit(embed=self.update_embed)
 
+    async def prepare_local_item(self, item: LocalItem) -> None:
+        self.current_file_path = str(item.file_path.resolve())
+        self.player = Player(self.current_file_path, self.playlist[0].duration)
+        await self.message_channel.send(embed=self.now_playing())
+
     async def song_end(self):
-        if self.loop.state == "all":
-            self.player = None
-            current_song = self.playlist.pop(0)
-            self.vc.stop()
-            await self.add_playlist_item(current_song)
-        elif self.loop.state == "one":
+        """Clean up after ending a song."""
+        if self.loop.state == "one":
             self.seek_song(0)
-        else:
-            self.player = None  # Clear old player away.
-            self.playlist.pop(0)
-            self.vc.stop()
-        await self.play()  # Play the next song.
+            return
+        finished_song = self.playlist.pop(0)
+        self.player = None
+        self.vc.stop()
+        if self.loop.state == "all":
+            await self.add_playlist_item(finished_song)
+        # Remove downloaded files
+        if isinstance(finished_song, YouTubeItem):
+            os.remove(finished_song.file_path)
 
     def song_ended_event(self, e):
         self.song_ended = True
@@ -998,15 +1050,9 @@ class ServerAudio:
         length_of_song = helpers.seconds_to_SMPTE(self.player.length_of_song)
         return f"`{current_time} / {length_of_song}`"
 
-    async def cleanup(self):
+    async def on_leave_vc(self):
         """Cleans up anything ongoing before the bot leaves."""
-        self.stop_download = True
-        self.vc.stop()
-        await asyncio.sleep(0.2)
-        try:
-            os.remove(self.current_file_path)  # FIXME: for some reason this doesn't work. Need to find a way to free up the file
-        except Exception as e:
-            print("Error trying to remove file: ", e)
+        await self.song_end()
 
     def create_pages(self):
         """Creates a list of ServerAudio.Page, to pass to ReactiveMessageManager.create_reactive_message"""
@@ -1058,7 +1104,10 @@ class ServerAudio:
         else:
             next_song = None
         this_song = self.playlist[0]
-        embed = embed_now_playing_youtube(embed, this_song, next_song, self.player.current_time)
+        if isinstance(this_song, YouTubeItem):
+            embed = embed_now_playing_youtube(embed, this_song, next_song, self.player.current_time)
+        elif isinstance(this_song, LocalItem):
+            embed_now_playing_local(embed, this_song, next_song, self.player.current_time)
         return embed
 
     @staticmethod
@@ -1066,7 +1115,7 @@ class ServerAudio:
         embed = helpers.default_embed()
         embed.title = f"**Queue for {page_data.guild_name}**"
         description = f"""__Now Playing:__
-        [{page_data.now_playing.title}]({page_data.now_playing.url}) | `{helpers.seconds_to_SMPTE(page_data.now_playing.duration)}`
+        {page_data.now_playing.title} | `{helpers.seconds_to_SMPTE(page_data.now_playing.duration)}`
         
         __Up Next:__"""
         # Check if we have a queue, or if it's only the song currently playing.
@@ -1077,7 +1126,7 @@ class ServerAudio:
                 if position == 0:
                     continue
                 duration = helpers.seconds_to_SMPTE(song.duration)
-                description += f"\n`{position}.` [{song.title}]({song.url}) | `{duration}` | `Requested by: {song.requested_by}`\n"
+                description += f"\n`{position}.` {song.title} | `{duration}` | `Requested by: {song.requested_by}`\n"
             footer_text = f"Page {page_data.page_num + 1}/{page_data.page_total}"
             description += f"\n**{page_data.song_total} songs in queue | {helpers.seconds_to_SMPTE(page_data.total_time)} total length**\n**Looping: {page_data.loop_state}**"
         else:
@@ -1197,6 +1246,22 @@ def embed_now_playing_youtube(embed, item: YouTubeItem, next_item: PlaylistItem 
     return embed
 
 
+def embed_now_playing_local(embed, item: LocalItem, next_item: PlaylistItem = None, song_position=0):
+    """Modifies an embed's title, thumbnail and description to display data about the currently playing song."""
+    embed.title = "**Now Playing**"
+    embed.description = f"{item.title}\n\n"
+
+    embed.description += f"`{ascii_seek_position(song_position / item.duration)}`\n\n"
+
+    embed.description += f"`{helpers.seconds_to_SMPTE(song_position)} / {helpers.seconds_to_SMPTE(item.duration)}`\n\n"
+
+    embed.description += f"`Requested by:` {item.requested_by}\n\n"
+
+    next_song = f"{next_item.title}" if next_item else "Nothing"
+    embed.description += f"`Up next:` {next_song}\n"
+    return embed
+
+
 def embed_added_youtube(item: YouTubeItem):
     embed = helpers.default_embed()
     embed.set_thumbnail(url=item.thumbnail_url)
@@ -1206,6 +1271,14 @@ def embed_added_youtube(item: YouTubeItem):
     embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
     return embed
     # TODO: Time until playing?
+
+
+def embed_added_local(item: LocalItem):
+    embed = helpers.default_embed()
+    embed.title = "Added to queue"
+    embed.description = f"{item.title}"
+    embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
+    return embed
 
 
 def chunk_list(lst, chunk_size):
