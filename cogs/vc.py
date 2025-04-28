@@ -32,7 +32,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.yt_api_key = self.bot.settings["YT_API_KEY"][0]
         self.help_dict = {
             "Playback": [f"{self.prefix}." + x for x in
-                         ["play", "playtop", "search", "seek", "fastforward", "rewind",
+                         ["play", "playtop", "playLocal", "search", "seek",
                           "clear", "repeat", "skip", "pause"]],
             "Basic": [f"{self.prefix}." + x for x in
                          ["join", "leave"]],
@@ -57,7 +57,19 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.playLocal"])
     async def play_local_command(self, ctx):
         if not await self.bot.has_perm(ctx, owner_only=True, dm=False): return
+        file_path = helpers.remove_invoke(ctx.message.content)
+        try:
+            local_item = LocalItem.create_from_local_file(ctx.author.display_name, Path(file_path))
+        except FileNotFoundError:
+            await ctx.send(f"No file at {file_path}")
+            return
+        vc = await self.get_connected_vc(ctx, True)
 
+        if not await vc.add_playlist_item(local_item):
+            return
+        # TODO: Local item embed
+        # embed = embed_added_youtube(item)
+        # await ctx.send(embed=embed)
 
     @commands.command(aliases=[f"{prefix}.play", f"{prefix}.p", f"{prefix}.oi"])
     async def play_song_command(self, ctx):
@@ -81,7 +93,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         youtube_video_match = re.match(
-                r'(?:https?:)?(?:\/\/)?(?:music\.)?(?:[0-9A-Z-]+\.)?(?:youtu\.be\/|youtube(?:-nocookie)?\.com\S*?[^\w\s-])([\w-]{11})(?=[^\w-]|$)(?![?=&+%\w.-]*(?:['"][^<>]*>|<\/a>))[?=&+%\w.-]*",
+                r"""(?:https?:)?(?://)?(?:music\.)?(?:[0-9A-Z-]+\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com\S*?[^\w\s-])([\w-]{11})(?=[^\w-]|$)(?![?=&+%\w.-]*(?:['"][^<>]*>|</a>))[?=&+%\w.-]*""",
                 first_url.group(1))
 
         if youtube_video_match and youtube_video_match.group(1):
@@ -189,18 +201,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     async def seek_to_position(self, ctx):
         await self.seek(ctx)
 
-    @commands.command(aliases=[f"{prefix}.ff", f"{prefix}.fastforward", f"{prefix}.forward"])
-    async def fast_forward(self, ctx):
-        await self.seek(ctx, forward=True)
-
-    @commands.command(aliases=[f"{prefix}.rewind", f"{prefix}.back"])
-    async def rewind(self, ctx):
-        if ctx.message.content == "c.vc.back back":
-            await ctx.send("bka")
-            return
-        await self.seek(ctx, back=True)
-
-    async def seek(self, ctx, *, forward=False, back=False):
+    async def seek(self, ctx):
         """Handles seeking functions commands"""
         if not await self.bot.has_perm(ctx, dm=False): return
         vc = await self.get_connected_vc(ctx)
@@ -208,16 +209,23 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("what")
             return
 
-        seek_time = re.match(r"^([^ ]+)", helpers.remove_invoke(ctx.message.content))
-        if not seek_time:
+        re_match = re.match(r"^([+-])?([^ ]+)", helpers.remove_invoke(ctx.message.content))
+        if not re_match:
             return
 
+        direction_char = re_match.group(1)
+        direction = 0
+        match direction_char:
+            case "+":
+                direction = 1
+            case "-":
+                direction = -1
         try:
-            seek_time = helpers.SMPTE_to_seconds(seek_time.group(1))
-            if forward:
+            seek_time = helpers.SMPTE_to_seconds(re_match.group(2))
+            if direction == 1:
                 seek_pos = vc.seek_forward(seek_time)
                 await ctx.send(f"nyeormed to {helpers.seconds_to_SMPTE(seek_pos)}")
-            elif back:
+            elif direction == -1:
                 seek_pos = vc.seek_back(seek_time)
                 await ctx.send(f"beep beep now at {helpers.seconds_to_SMPTE(seek_pos)}")
             else:
@@ -225,10 +233,10 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                 await ctx.send("s o o k")
             return
         except NoAudioLoaded:
-            await ctx.send("No song to seek!")
+            await ctx.send("not playing a song to seek in!!!")
             return
         except InvalidSeek:
-            await ctx.send("Invalid s-seek x3c")
+            await ctx.send("that's not a valid time silly c:")
             return
 
     @commands.command(aliases=[f"{prefix}.clear"])
@@ -452,45 +460,15 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         Go to a point in the video.
 
         **Examples:**
-        Go to 5 minutes 30 seconds
-        `c.vc.seek 5:30`
         Go to that part that was *really* funny
         `c.vc.seek 20.5`
+        Relisten to the best part of the song
+        `c.vc.seek -30`
+        Skip the ad-read
+        `c.vc.seek +60`
         look for better days
-        `c.vc.seek 2:32:12.05`
+        `c.vc.seek +2:32:12.05`
         """
-        embed = helpers.help_command_embed(self.bot, description)
-        await ctx.send(embed=embed)
-
-    @commands.command(aliases=[f"{prefix}.ff.help", f"{prefix}.fastforward.help", f"{prefix}.forward.help"])
-    async def fast_forward_help(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-        description = """
-        Go forward an amount of time.
-
-        **Examples:**
-        skip ad for brilliant.organization
-        `c.vc.forward 2:00`
-        zoom past the part where they talk about their subscribers
-        `c.vc.ff 5:00`
-        """
-        embed = helpers.help_command_embed(self.bot, description)
-        await ctx.send(embed=embed)
-
-    @commands.command(aliases=[f"{prefix}.rewind.help", f"{prefix}.back.help"])
-    async def rewind_help(self, ctx):
-        if not await self.bot.has_perm(ctx, dm=True): return
-        description = """
-            go bak
-
-            **Examples:**
-            go bak.
-            `c.vc.rewind 5`
-            gob ak
-            `c.vc.back 5:5`
-            bak
-            `c.vc.back back`
-            """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
 
@@ -718,14 +696,16 @@ class PlaylistItem:
 
 @dataclass
 class LocalItem(PlaylistItem):
-    file_path: str
+    file_path: Path
 
     @staticmethod
-    async def create_from_local_file(requested_by: str, file_path: str) -> List['LocalItem']:
+    def create_from_local_file(requested_by: str, file_path: Path) -> 'LocalItem':
+        if not file_path.exists():
+            raise FileNotFoundError
         data = {"requested_by": requested_by, "file_path": file_path}
-        data["duration"] = int(float(subprocess.check_output(["ffprobe", "-i", file_path, "-show_entries", "format=duration", "-v", "quiet", "-of", 'csv="p=0"',])))
-        data["title"] = Path(file_path).stem
-        return [LocalItem(**data)]
+        data["duration"] = int(float(subprocess.check_output(["ffprobe", "-i", str(file_path), "-show_entries", "format=duration", "-v", "quiet", "-of", 'csv="p=0"',])))
+        data["title"] = file_path.stem
+        return LocalItem(**data)
 
 
 @dataclass
@@ -1235,8 +1215,8 @@ def chunk_list(lst, chunk_size):
     for i in range(0, len(lst), chunk_size):
         yield lst[i:i + chunk_size]
 
-# FIXME: Update on voice state change
 
+# FIXME: Update on voice state change
 # Exceptions
 class InvalidVideoId(Exception):
     pass
