@@ -40,8 +40,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
                          ["description", "queue", "nowplaying"]],
         }
 
-    # TODO: Screenshot from video function
-    # TODO: Add admin override
     @commands.command(aliases=[f"{prefix}.join", f"{prefix}.getin"])
     async def join_vc_command(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
@@ -93,7 +91,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         youtube_video_match = re.match(
-                r"""(?:https?:)?(?://)?(?:music\.)?(?:[0-9A-Z-]+\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com\S*?[^\w\s-])([\w-]{11})(?=[^\w-]|$)(?![?=&+%\w.-]*(?:['"][^<>]*>|</a>))[?=&+%\w.-]*""",
+                r"""(?:https:\/\/)?(?:[0-9A-Za-z-]+\.)?(?:youtu\.be\/|youtube(?:-nocookie)?\.com\S*?[^\w\s-])([\w-]{11})(?=[^\w-]|$)(?![?=&+%\w.-]*(?:['"][^<>]*>|<\/a>))[?=&+%\w.-]*""",
                 first_url.group(1))
 
         if youtube_video_match and youtube_video_match.group(1):
