@@ -684,6 +684,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             embed.set_footer(text=footer_text)
             return embed
 
+
 class Player(discord.FFmpegPCMAudio):
     def __init__(self, source, duration, *, seek=0):
         if seek == duration:
@@ -1028,6 +1029,8 @@ class ServerAudio:
 
     async def song_end(self):
         """Clean up after ending a song."""
+        if self.player is None:
+            return
         if self.loop.state == "one":
             self.seek_song(0)
             return
