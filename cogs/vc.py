@@ -149,6 +149,19 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             await ctx.send("owo no")
             return
 
+    @commands.command(aliases=[f"{prefix}.autoplay"])
+    async def toggle_autoplay(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=False): return
+        vc = await self.get_connected_vc(ctx)
+        if not vc:
+            await ctx.send("Not in a vc :<")
+            return
+        vc.auto_play = not vc.auto_play
+        if vc.auto_play:
+            await ctx.send("Autoplay on!")
+        else:
+            await ctx.send("Autoplay off!")
+
     @commands.command(aliases=[f"{prefix}.search"])
     async def yt_query_list(self, ctx):
         """Displays a list things that could be played and allows the user to choose."""
@@ -274,7 +287,8 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         try:
             vc.skip_song()
             await ctx.send(":fast_forward: Skipped!")
-            await vc.play()
+            if vc.auto_play:
+                await vc.play()
         except PlaylistEmpty:
             return
 
@@ -357,7 +371,6 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
     @commands.command(aliases=[f"{prefix}.playlist"])
     async def user_playlist(self, ctx):
         # User playlists allow users to continue what they were listening to before.
-        # TODO: Allow users to save playlists.
         pass
 
     # === Help functions ===
@@ -523,6 +536,19 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             `c.vc.loop`
             toggle loop 2
             `c.vc.loop`
+            """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.autoplay.help"])
+    async def help_autoplay(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+            Toggle autoplaying the next track on/off!
+
+            **Examples:**
+            toggle autoplay
+            `c.vc.autoplay`
             """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
@@ -860,17 +886,20 @@ class ServerAudio:
         self.song_ended = False
         self.update_embed = None
         self.update_message = None
+        self.auto_play = True
 
         self.loop = helpers.StateObject("off", "one", "all")
         asyncio.run_coroutine_threadsafe(self.check_if_song_ended_loop(), self.async_loop)
 
     # Handle moving to the next song.
     async def check_if_song_ended_loop(self):
+        # TODO: When a song is ~20 seconds from the end, download the next one if necessary.
         while True:
             if self.song_ended:
                 await self.song_end()
                 self.song_ended = False
-                await self.play()
+                if self.auto_play:
+                    await self.play()
             await asyncio.sleep(1)
 
     async def add_playlist_item(self, item: PlaylistItem, pos=-1):
@@ -881,7 +910,8 @@ class ServerAudio:
             self.playlist.append(item)
 
         if len(self.playlist) == 1:  # Only the song that was just added exists.
-            await self.play()
+            if self.auto_play:
+                await self.play()
             return 1
         return 0
 
@@ -896,6 +926,7 @@ class ServerAudio:
         """
         Play paused or queued audio.
         """
+        # TODO: Allow you to search youtube with this.
         # Song was paused
         if self.player is not None:
             if self.vc.is_paused():
@@ -988,11 +1019,6 @@ class ServerAudio:
         while self.downloading:
             await asyncio.sleep(0.1)
 
-    def progress_hook(self, d):
-        if d["status"] != "finished":
-            return
-        self.current_file_path = Path(d["filename"])
-
     async def download_youtube_item(self, item: YouTubeItem) -> None:
         self.update_embed = helpers.default_embed()  # Downloading embed.
         self.update_embed = embed_downloading(self.update_embed, item, 0)
@@ -1021,6 +1047,11 @@ class ServerAudio:
         self.player = Player(self.current_file_path, self.playlist[0].duration)
         self.update_embed = self.now_playing()
         await self.update_message.edit(embed=self.update_embed)
+
+    def progress_hook(self, d):
+        if d["status"] != "finished":
+            return
+        self.current_file_path = Path(d["filename"])
 
     async def prepare_local_item(self, item: LocalItem) -> None:
         self.current_file_path = str(item.file_path.resolve())
