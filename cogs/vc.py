@@ -1,3 +1,4 @@
+import logging
 from discord.ext import commands
 import discord
 import asyncio
@@ -363,7 +364,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             return
 
         try:
-            embed = vc.now_playing()
+            embed = embed_now_playing(vc)
             await ctx.send(embed=embed)
         except PlaylistEmpty:
             await ctx.send("Nothing playing!")
@@ -1036,17 +1037,22 @@ class ServerAudio:
             "outtmpl": {"default": f"%(title)s.%(ext)s"},
             "overwrites": True
         }
-        with YoutubeDL(params) as ydl:
-            ydl.download([item.url])
+        try:
+            with YoutubeDL(params) as ydl:
+                ydl.download([item.url])
+            item.file_path = self.current_file_path
+            self.player = Player(self.current_file_path, self.playlist[0].duration)
+            self.update_embed = embed_now_playing(self)
+            await self.update_message.edit(embed=self.update_embed)
+        except Exception as e:
+            logger = logging.getLogger('discord')
+            logger.error(f"Failed to download video. {repr(e)}")
+            new_embed = embed_failed_download(item)
+            await self.update_message.edit(embed=new_embed)
+            self.skip_song()
 
-        item.file_path = self.current_file_path
         self.download_progress = -1
         self.downloading = False
-
-        # Create the "Now playing" embed
-        self.player = Player(self.current_file_path, self.playlist[0].duration)
-        self.update_embed = self.now_playing()
-        await self.update_message.edit(embed=self.update_embed)
 
     def progress_hook(self, d):
         if d["status"] != "finished":
@@ -1056,7 +1062,7 @@ class ServerAudio:
     async def prepare_local_item(self, item: LocalItem) -> None:
         self.current_file_path = str(item.file_path.resolve())
         self.player = Player(self.current_file_path, self.playlist[0].duration)
-        await self.message_channel.send(embed=self.now_playing())
+        await self.message_channel.send(embed=embed_now_playing(self))
 
     async def song_end(self):
         """Clean up after ending a song."""
@@ -1128,22 +1134,6 @@ class ServerAudio:
             return [p]
         else:
             return None
-
-    def now_playing(self):
-        """Returns an embed for "now playing" """
-        if not self.player:
-            raise PlaylistEmpty
-        embed = helpers.default_embed()
-        if len(self.playlist) > 1:
-            next_song = self.playlist[1]
-        else:
-            next_song = None
-        this_song = self.playlist[0]
-        if isinstance(this_song, YouTubeItem):
-            embed = embed_now_playing_youtube(embed, this_song, next_song, self.player.current_time)
-        elif isinstance(this_song, LocalItem):
-            embed_now_playing_local(embed, this_song, next_song, self.player.current_time)
-        return embed
 
     @staticmethod
     def display_playlist(page_data):
@@ -1252,7 +1242,7 @@ def embed_downloading(embed, item: YouTubeItem, percent: float):
     progress_bar = helpers.ascii_progress_bar(percent)
     percent = percent * 100
     desc = f":inbox_tray: Downloading: [{item.title}]({item.url})"
-    embed.description = f"{desc}\n\n`{progress_bar} {percent:.1f}%`"
+    embed.description = f"{desc}"#\n\n`{progress_bar} {percent:.1f}%`"
     embed.set_thumbnail(url=item.thumbnail_url)
     return embed
 
@@ -1297,6 +1287,13 @@ def embed_now_playing_local(embed, item: LocalItem, next_item: PlaylistItem = No
     return embed
 
 
+def embed_failed_download(item: YouTubeItem):
+    embed = helpers.default_embed()
+    embed.description = f"Download failed: [{item.title}]({item.url})\n\n"
+    embed.set_thumbnail(url=item.thumbnail_url)
+    return embed
+
+
 def embed_added_youtube(item: YouTubeItem):
     embed = helpers.default_embed()
     embed.set_thumbnail(url=item.thumbnail_url)
@@ -1313,6 +1310,28 @@ def embed_added_local(item: LocalItem):
     embed.title = "Added to queue"
     embed.description = f"{item.title}"
     embed.add_field(name="Duration", value=helpers.seconds_to_SMPTE(item.duration))
+    return embed
+
+
+def embed_now_playing(server_audio: ServerAudio):
+    """Returns an embed for "now playing" """
+    playlist = server_audio.playlist
+    if len(playlist) == 0:
+        raise PlaylistEmpty
+    if server_audio.player is None:
+        raise NoLoadedTrack
+
+    this_song = playlist[0]
+    if len(playlist) > 1:
+        next_song = playlist[1]
+    else:
+        next_song = None
+
+    embed = helpers.default_embed()
+    if isinstance(this_song, YouTubeItem):
+        embed = embed_now_playing_youtube(embed, this_song, next_song, server_audio.player.current_time)
+    elif isinstance(this_song, LocalItem):
+        embed_now_playing_local(embed, this_song, next_song, server_audio.player.current_time)
     return embed
 
 
@@ -1334,7 +1353,8 @@ class NoAudioLoaded(Exception):
     pass
 class InvalidSeek(Exception):
     pass
-
+class NoLoadedTrack(Exception):
+    pass
 
 async def setup(bot):
     bot.core_help_text["modules"] += ["vc"]
