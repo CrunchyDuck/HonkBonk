@@ -293,6 +293,38 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         except PlaylistEmpty:
             return
 
+    @commands.command(aliases=[f"{prefix}.remove", f"{prefix}.rm"])
+    async def remove_from_queue(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=False): return
+        vc = await self.get_connected_vc(ctx)
+        if vc is None:
+            await ctx.send("i long to sit in the voip with you")
+            return
+
+        inputs = helpers.remove_invoke(ctx.message.content).split(" ")
+        inputs_cleaned = []
+        failed_inputs = []
+        for i in inputs:
+            try:
+                val = int(i)
+                inputs_cleaned.append(val)
+            except ValueError:
+                failed_inputs.append(i)
+                continue
+        try:
+            failed = await vc.remove_songs(inputs_cleaned)
+            failed_inputs += failed
+        except PlaylistEmpty:
+            await ctx.send("no playlist")
+            return
+
+        m = "did my best :>"
+        if failed_inputs:
+            failed_inputs_str = [str(x) for x in failed_inputs]
+            not_removed = ", ".join(failed_inputs_str)
+            m += f"\nCouldn't remove: {not_removed}"
+        await ctx.send(m)
+
     @commands.command(aliases=[f"{prefix}.repeat", f"{prefix}.r", f"{prefix}.loop"])
     async def repeat_selection(self, ctx):
         if not await self.bot.has_perm(ctx, dm=False): return
@@ -995,6 +1027,31 @@ class ServerAudio:
 
     def pause(self):
         self.vc.pause()
+
+    async def remove_songs(self, indexes: List[int]) -> List[int]:
+        """
+        Remove songs from queue.
+        Returns: List of indexes that could not be removed.
+        """
+        if not self.playlist:
+            raise PlaylistEmpty
+        failed_indexes = []
+        indexes = sorted(indexes, reverse=True)
+
+        for i in indexes:
+            print(i)
+            print(len(self.playlist))
+            if len(self.playlist) <= i:
+                failed_indexes.append(i)
+                continue
+            if i == 0:
+                self.skip_song()
+                if self.auto_play:
+                    await self.play()
+                continue
+            self.playlist.pop(i)
+
+        return failed_indexes
 
     def skip_song(self):
         """Gets the next song ready to be played."""
