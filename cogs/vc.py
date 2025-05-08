@@ -34,7 +34,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         self.help_dict = {
             "Playback": [f"{self.prefix}." + x for x in
                          ["play", "playtop", "playLocal", "search", "seek",
-                          "clear", "repeat", "skip", "pause"]],
+                          "clear", "repeat", "skip", "remove", "pause"]],
             "Basic": [f"{self.prefix}." + x for x in
                          ["join", "leave"]],
             "Info": [f"{self.prefix}." + x for x in
@@ -597,6 +597,19 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
         `c.vc.skip`
         erasing "carrot cake asmr"
         `c.vc.s`
+        """
+        embed = helpers.help_command_embed(self.bot, description)
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=[f"{prefix}.remove.help", f"{prefix}.rm.help"])
+    async def remove_song_help(self, ctx):
+        if not await self.bot.has_perm(ctx, dm=True): return
+        description = """
+        Exile choice indexes from the playlist, left forever to walk the empty plains.
+
+        **Examples:**
+        Removing Caramelldansen before it infects everyone.
+        `c.vc.rm 2`
         """
         embed = helpers.help_command_embed(self.bot, description)
         await ctx.send(embed=embed)
