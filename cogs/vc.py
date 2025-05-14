@@ -1,4 +1,5 @@
 import logging
+import time
 from discord.ext import commands
 import discord
 import asyncio
@@ -70,7 +71,7 @@ class VoiceChannels(commands.Cog, name="voice_channels"):
             embed = embed_added_local(local_item)
             await ctx.send(embed=embed)
         else:
-            local_items = LocalItem.create_from_local_folder(ctx.author.display_name, file_path)
+            local_items = await LocalItem.create_from_local_folder(ctx.author.display_name, file_path)
             vc = await self.get_connected_vc(ctx, True)
             await vc.add_playlist_items(local_items)
             # TODO: Local item embed
@@ -798,20 +799,24 @@ class LocalItem(PlaylistItem):
         return LocalItem(**data)
 
     @staticmethod
-    def create_from_local_folder(requested_by: str, folder_path: Path) -> List['LocalItem']:
+    async def create_from_local_folder(requested_by: str, folder_path: Path) -> List['LocalItem']:
         if not folder_path.exists():
             raise FileNotFoundError
         files = []
         # Inefficient to do multiple searches, but oh well! Only I can use this.
-        files += list(folder_path.glob("*.mp3"))
-        files += list(folder_path.glob("*.m4a"))
-        files += list(folder_path.glob("*.wav"))
-        files += list(folder_path.glob("*.flac"))
-        files += list(folder_path.glob("*.opus"))
+        files += list(folder_path.glob("**/*.mp3"))
+        files += list(folder_path.glob("**/*.m4a"))
+        files += list(folder_path.glob("**/*.wav"))
+        files += list(folder_path.glob("**/*.flac"))
+        files += list(folder_path.glob("**/*.opus"))
         files = sorted(files)
         local_items = []
+        last_break = time.time()
         for f in files:
             local_items.append(LocalItem.create_from_local_file(requested_by, f))
+            if time.time() - last_break > 5:
+                await asyncio.sleep(1)
+                last_break = time.time()
         return local_items
 
 
